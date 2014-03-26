@@ -42,28 +42,43 @@ class TestMySQL(unittest.TestCase):
 
 
     def testInsert(self):
-        schema = OrderedDict({'col1' : 'INT', 'col2' : 'TEXT'})
+        schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
-        colnameValueDict = {'col1' : 10}
+        colnameValueDict = OrderedDict([('col1',10)])
         self.mysqldb.insert('unittest', colnameValueDict)
-        self.assertEqual((None, 10), self.mysqldb.query("SELECT * FROM unittest").next())
+        self.assertEqual((10,None), self.mysqldb.query("SELECT * FROM unittest").next())
         #for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
-
+ 
     def testInsertSeveralColums(self):
-        schema = OrderedDict({'col1' : 'INT', 'col2' : 'TEXT'})
+        schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
-        colnameValueDict = {'col1' : 10, 'col2' : 'My poem'}
+        colnameValueDict = OrderedDict([('col1',10), ('col2','My Poem')])
         self.mysqldb.insert('unittest', colnameValueDict)
-        self.assertEqual(('My poem', 10), self.mysqldb.query("SELECT * FROM unittest").next())
-        
+        res = self.mysqldb.query("SELECT * FROM unittest").next()
+        self.assertEqual((10,'My Poem'), res)
+         
     def testQueryIterator(self):
         self.buildSmallDb()
-        for result in self.mysqldb.query('SELECT col1,col2 FROM unittest'):
-            print(result)
+        for rowNum, result in enumerate(self.mysqldb.query('SELECT col1,col2 FROM unittest')):
+            if rowNum == 0:
+                self.assertEqual((10,'col1'), result)
+            elif rowNum == 1:
+                self.assertEqual((20,'col2'), result)
+            elif rowNum == 2:
+                self.assertEqual((30,'col3'), result)
+    
+    def testTruncate(self):
+        self.buildSmallDb()
+        self.mysqldb.truncateTable('unittest')
+        try:
+            self.mysqldb.query("SELECT * FROM unittest").next()
+            self.fail()
+        except StopIteration:
+            pass
     
     def buildSmallDb(self):
-        schema = OrderedDict({'col1' : 'INT', 'col2' : 'TEXT'})
+        schema = OrderedDict([('col1','INT'),('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
         colNames = ['col1','col2']
         colValues = [(10, 'col1'),(20,'col2'),(30,'col3')]
