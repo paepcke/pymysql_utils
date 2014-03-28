@@ -47,6 +47,7 @@ class MySQLDB(object):
         self.user = user
         self.pwd  = passwd
         self.db   = db
+        self.name = db
         self.cursors = []
         try:
             self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
@@ -161,8 +162,7 @@ class MySQLDB(object):
         tmpCSVFile.flush()
         try:
             # Remove quotes from the values inside the colNameTuple's:
-            mySQLColNameList = re.sub("'","",str(colNameTuple))
-            mySQLCmd = "USE %s; LOAD DATA LOCAL INFILE '%s' INTO TABLE %s FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' %s" %\
+            mySQLCmd = "USE %s; LOAD DATA LOCAL INFILE '%s' INTO TABLE %s FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' %s;commit;" %\
                       (self.db, tmpCSVFile.name, tblName, ';')
             if len(self.pwd) > 0:
                 subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, '-e', mySQLCmd])
@@ -221,6 +221,7 @@ class MySQLDB(object):
         @param queryStr: query
         @type queryStr: String
         '''
+        queryStr = queryStr.encode('UTF-8')
         cursor = self.connection.cursor()
         # For if caller never exhausts the results by repeated calls:
         self.cursors.append(cursor)
