@@ -9,8 +9,10 @@ Modifications:
 
 '''
 
+import csv
 import re
 import subprocess
+import sys
 import tempfile
 
 import pymysql
@@ -73,7 +75,7 @@ class MySQLDB(object):
         except:
             pass
 
-    def createTable(self, tableName, schema):
+    def createTable(self, tableName, schema, temporary=False):
         '''
         Create new table, given its name, and schema.
         The schema is a dict mappingt column names to 
@@ -157,13 +159,24 @@ class MySQLDB(object):
         @type valueTupleArray: [(<anyMySQLCompatibleTypes>[<anyMySQLCompatibleTypes,...]])
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='userCountryTmp',suffix='.csv')
-        for valueTuple in valueTupleArray:
-            tmpCSVFile.write(','.join(map(str,valueTuple)) + '\n')
+        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)        
+        self.csvWriter.writerows(valueTupleArray)
         tmpCSVFile.flush()
+        
+        # Create the MySQL column name list needed in the LOAD INFILE below.
+        # We need '(colName1,colName2,...)':
+        if len(colNameTuple) == 0:
+            colSpec = '()'
+        else:
+            colSpec = '(' + colNameTuple[0]
+            for colName in colNameTuple[1:]:
+                colSpec += ',' + colName
+            colSpec += ')'   
         try:
             # Remove quotes from the values inside the colNameTuple's:
-            mySQLCmd = "USE %s; LOAD DATA LOCAL INFILE '%s' INTO TABLE %s FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' %s;commit;" %\
-                      (self.db, tmpCSVFile.name, tblName, ';')
+            mySQLCmd = ("USE %s; LOAD DATA LOCAL INFILE '%s' INTO TABLE %s FIELDS TERMINATED BY ',' " +\
+                        "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '' LINES TERMINATED BY '\\n' %s" +\
+                        ";commit;") %  (self.db, tmpCSVFile.name, tblName, colSpec)
             if len(self.pwd) > 0:
                 subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, '-e', mySQLCmd])
             else:
