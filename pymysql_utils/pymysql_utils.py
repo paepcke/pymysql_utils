@@ -160,8 +160,11 @@ class MySQLDB(object):
         @type valueTupleArray: [(<anyMySQLCompatibleTypes>[<anyMySQLCompatibleTypes,...]])
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='userCountryTmp',suffix='.csv')
-        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)        
-        self.csvWriter.writerows(valueTupleArray)
+        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        # Can't use csvWriter.writerows() b/c some rows have 
+        # weird chars: self.csvWriter.writerows(valueTupleArray)        
+        for row in valueTupleArray:
+            self.csvWriter.writerow(row.encode('UTF-8', 'ignore'))
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
