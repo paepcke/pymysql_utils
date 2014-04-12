@@ -164,7 +164,9 @@ class MySQLDB(object):
         # Can't use csvWriter.writerows() b/c some rows have 
         # weird chars: self.csvWriter.writerows(valueTupleArray)        
         for row in valueTupleArray:
-            self.csvWriter.writerow(row.encode('UTF-8', 'ignore'))
+            # Convert each element in row to a string,
+            # including mixed-in Unicode Strings:
+            self.csvWriter.writerow([self.stringifyList(rowElement) for rowElement in row])
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
@@ -258,7 +260,7 @@ class MySQLDB(object):
         resList = []
         for el in colVals:
             if isinstance(el, basestring):
-                resList.append('"%s"' % el)
+                resList.append('"%s"' % el.encode('UTF-8', 'ignore'))
             else:
                 resList.append(el)
         return ','.join(map(str,resList))        
@@ -281,3 +283,23 @@ class MySQLDB(object):
                 cursor.close()
                 return
             yield nextRes
+
+    def stringifyList(self, iterable):
+        '''
+        Goes through the iterable. For each element, tries
+        to turn into a string, part of which attempts encoding
+        with the 'ascii' codec. Then encountering a unicode
+        char, that char is UTF-8 encoded.
+        
+        Acts as an iterator! Use like:
+        for element in stringifyList(someList):
+            print(element)
+        @param iterable: mixture of items of any type, including Unicode strings.
+        @type iterable: [<any>]
+        '''
+        for element in iterable:
+            try:
+                yield(str(element))
+            except UnicodeEncodeError:
+                yield element.encode('UTF-8','ignore')
+    
