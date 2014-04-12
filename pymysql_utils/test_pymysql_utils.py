@@ -77,6 +77,19 @@ class TestMySQL(unittest.TestCase):
         except StopIteration:
             pass
     
+    def testExecuteArbitraryQuery(self):
+        self.buildSmallDb()
+        self.mysqldb.execute("UPDATE unittest SET col1=120")
+        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
+            self.assertEqual((120,), result)
+        
+    def testExecuteArbitraryQueryParameterized(self):
+        self.buildSmallDb()
+        myVal = 130
+        self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal))
+        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
+            self.assertEqual((130,), result)
+        
     def buildSmallDb(self):
         schema = OrderedDict([('col1','INT'),('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)

@@ -53,6 +53,7 @@ class MySQLDB(object):
         self.cursors = []
         try:
             self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
             #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
         
         #except MySQLdb.OperationalError:
@@ -209,7 +210,39 @@ class MySQLDB(object):
             self.connection.commit()
         finally:
             cursor.close()
+            
+    def execute(self,query):                                                                                   
+        '''
+        Execute an arbitrary query, including
+        MySQL directives.
+        @param query: query or directive
+        @type query: String
+        '''
         
+        cursor=self.connection.cursor()                                                                        
+        try:                                                                                                   
+            cursor.execute(query)                                                                              
+            self.connection.commit()                                                                           
+        finally:                                                                                               
+            cursor.close()                                                                                     
+                                                                                                               
+    def executeParameterized(self,query,params):                                                                      
+        '''
+        Executes arbitrary query that is parameterized
+        as in the Python string format statement. Ex:
+        executeParameterized('SELECT %s FROM myTable', ('col1', 'col3'))
+        @param query: query with parameter placeholder
+        @type query: string
+        @param params: actuals for the parameters
+        @type params: (<any>)
+        '''
+        cursor=self.connection.cursor()                                                                        
+        try:                                                                                                   
+            cursor.execute(query,params)                                                                       
+            self.connection.commit()                                                                           
+        finally:                                                                                               
+            cursor.close()  
+                    
     def ensureSQLTyping(self, colVals):
         '''
         Given a list of items, return a string that preserves
