@@ -52,7 +52,7 @@ class MySQLDB(object):
         self.name = db
         self.cursors = []
         try:
-            self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
             #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
         
