@@ -166,7 +166,7 @@ class MySQLDB(object):
         for row in valueTupleArray:
             # Convert each element in row to a string,
             # including mixed-in Unicode Strings:
-            self.csvWriter.writerow([self.stringifyList(rowElement) for rowElement in row])
+            self.csvWriter.writerow([rowElement for rowElement in self.stringifyList(row)])
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
