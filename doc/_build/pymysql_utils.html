@@ -1,0 +1,411 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pymysql_utils Package &mdash; pymysql_utils 0.30 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.30',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="pymysql_utils 0.30 documentation" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="index.html">pymysql_utils 0.30 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="pymysql-utils-package">
+<h1>pymysql_utils Package<a class="headerlink" href="#pymysql-utils-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-pymysql_utils.pymysql_utils">
+<span id="pymysql-utils-module"></span><h2><tt class="xref py py-mod docutils literal"><span class="pre">pymysql_utils</span></tt> Module<a class="headerlink" href="#module-pymysql_utils.pymysql_utils" title="Permalink to this headline">¶</a></h2>
+<p>Created on Sep 24, 2013</p>
+<p>&#64;author: paepcke</p>
+<dl class="docutils">
+<dt>Modifications:</dt>
+<dd><ul class="first last simple">
+<li>Dec 30, 2013: Added closing of connection to close() method</li>
+</ul>
+</dd>
+</dl>
+<dl class="class">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB">
+<em class="property">class </em><tt class="descclassname">pymysql_utils.pymysql_utils.</tt><tt class="descname">MySQLDB</tt><big>(</big><em>host='127.0.0.1'</em>, <em>port=3306</em>, <em>user='root'</em>, <em>passwd=''</em>, <em>db='mysql'</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>Shallow interface to MySQL databases. Some niceties nonetheless.
+The query() method is an iterator. So:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">mySqlObj</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s">&#39;SELECT * FROM foo&#39;</span><span class="p">):</span>
+    <span class="k">print</span> <span class="n">result</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.bulkInsert">
+<tt class="descname">bulkInsert</tt><big>(</big><em>tblName</em>, <em>colNameTuple</em>, <em>valueTupleArray</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.bulkInsert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inserts large number of rows into given table. Strategy: write
+the values to a temp file, then generate a LOAD INFILE LOCAL
+MySQL command. Execute that command via subprocess.call(). 
+Using a cursor.execute() fails with error &#8216;LOAD DATA LOCAL
+is not supported in this MySQL version...&#8217; even though MySQL
+is set up to allow the op (load-infile=1 for both mysql and
+mysqld in my.cnf).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>tblName</strong> (<a class="reference external" href="http://docs.python.org/library/string.html#string" title="(in Python v2.7)"><em>string</em></a>) &#8211; table into which to insert</li>
+<li><strong>colNameTuple</strong> (<em>(str[,str[...]])</em>) &#8211; tuple containing column names in proper order, i.e. 
+corresponding to valueTupleArray orders.</li>
+<li><strong>valueTupleArray</strong> (<em>[(&lt;anyMySQLCompatibleTypes&gt;[&lt;anyMySQLCompatibleTypes,...]])</em>) &#8211; array of n-tuples, which hold the values. Order of
+values must correspond to order of column names in colNameTuple.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.close">
+<tt class="descname">close</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Close all cursors that are currently still open.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.createTable">
+<tt class="descname">createTable</tt><big>(</big><em>tableName</em>, <em>schema</em>, <em>temporary=False</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.createTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create new table, given its name, and schema.
+The schema is a dict mappingt column names to 
+column types. Example: {&#8216;col1&#8217; : &#8216;INT&#8217;, &#8216;col2&#8217; : &#8216;TEXT&#8217;}</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>tableName</strong> (<em>String</em>) &#8211; name of new table</li>
+<li><strong>schema</strong> (<em>Dict&lt;String,String&gt;</em>) &#8211; dictionary mapping column names to column types</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.dropTable">
+<tt class="descname">dropTable</tt><big>(</big><em>tableName</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.dropTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Delete table safely. No errors</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>tableName</strong> (<em>String</em>) &#8211; name of table</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.ensureSQLTyping">
+<tt class="descname">ensureSQLTyping</tt><big>(</big><em>colVals</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.ensureSQLTyping" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a list of items, return a string that preserves
+MySQL typing. Example: (10, &#8216;My Poem&#8217;) &#8212;&gt; &#8216;10, &#8220;My Poem&#8221;&#8217;
+Note that &#8216;,&#8217;.join(map(str,myList)) won&#8217;t work:
+(10, &#8216;My Poem&#8217;) &#8212;&gt; &#8216;10, My Poem&#8217;</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>colVals</strong> (<em>&lt;any&gt;</em>) &#8211; list of column values destined for a MySQL table</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.execute">
+<tt class="descname">execute</tt><big>(</big><em>query</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.execute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute an arbitrary query, including
+MySQL directives.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>query</strong> (<em>String</em>) &#8211; query or directive</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.executeParameterized">
+<tt class="descname">executeParameterized</tt><big>(</big><em>query</em>, <em>params</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.executeParameterized" title="Permalink to this definition">¶</a></dt>
+<dd><p>Executes arbitrary query that is parameterized
+as in the Python string format statement. Ex:
+executeParameterized(&#8216;SELECT %s FROM myTable&#8217;, (&#8216;col1&#8217;, &#8216;col3&#8217;))</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>query</strong> (<a class="reference external" href="http://docs.python.org/library/string.html#string" title="(in Python v2.7)"><em>string</em></a>) &#8211; query with parameter placeholder</li>
+<li><strong>params</strong> (<em>(&lt;any&gt;)</em>) &#8211; actuals for the parameters</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.insert">
+<tt class="descname">insert</tt><big>(</big><em>tblName</em>, <em>colnameValueDict</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.insert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a dictionary mapping column names to column values,
+insert the data into a specified table</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>tblName</strong> (<em>String</em>) &#8211; name of table to insert into</li>
+<li><strong>colnameValueDict</strong> (<em>Dict&lt;String,Any&gt;</em>) &#8211; mapping of column name to column value</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.query">
+<tt class="descname">query</tt><big>(</big><em>queryStr</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Query iterator. Given a query, return one result for each
+subsequent call.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>queryStr</strong> (<em>String</em>) &#8211; query</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.stringifyList">
+<tt class="descname">stringifyList</tt><big>(</big><em>iterable</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.stringifyList" title="Permalink to this definition">¶</a></dt>
+<dd><p>Goes through the iterable. For each element, tries
+to turn into a string, part of which attempts encoding
+with the &#8216;ascii&#8217; codec. Then encountering a unicode
+char, that char is UTF-8 encoded.</p>
+<p>Acts as an iterator! Use like:
+for element in stringifyList(someList):</p>
+<blockquote>
+<div>print(element)</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>iterable</strong> (<em>[&lt;any&gt;]</em>) &#8211; mixture of items of any type, including Unicode strings.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.truncateTable">
+<tt class="descname">truncateTable</tt><big>(</big><em>tableName</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.truncateTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Delete all table rows. No errors</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>tableName</strong> (<em>String</em>) &#8211; name of table</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.pymysql_utils.MySQLDB.update">
+<tt class="descname">update</tt><big>(</big><em>tblName</em>, <em>colName</em>, <em>newVal</em>, <em>fromCondition=None</em><big>)</big><a class="headerlink" href="#pymysql_utils.pymysql_utils.MySQLDB.update" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update one column with a new value.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>tblName</strong> (<em>String</em>) &#8211; name of table in which update is to occur</li>
+<li><strong>colName</strong> (<em>String</em>) &#8211; column whose value is to be changed</li>
+<li><strong>newVal</strong> (<em>type acceptable to MySQL for the given column</em>) &#8211; value acceptable to MySQL for the given column</li>
+<li><strong>fromCondition</strong> (<em>String</em>) &#8211; optionally condition that selects which rows to update.
+if None, the named column in all rows are updated to
+the given value. Syntax must conform to what may be in
+a MySQL FROM clause (don&#8217;t include the &#8216;FROM&#8217; keyword)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-pymysql_utils.test_pymysql_utils">
+<span id="test-pymysql-utils-module"></span><h2><tt class="xref py py-mod docutils literal"><span class="pre">test_pymysql_utils</span></tt> Module<a class="headerlink" href="#module-pymysql_utils.test_pymysql_utils" title="Permalink to this headline">¶</a></h2>
+<p>Created on Sep 24, 2013</p>
+<p>&#64;author: paepcke</p>
+<dl class="class">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL">
+<em class="property">class </em><tt class="descclassname">pymysql_utils.test_pymysql_utils.</tt><tt class="descname">TestMySQL</tt><big>(</big><em>methodName='runTest'</em><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">unittest.case.TestCase</span></tt></p>
+<dl class="docutils">
+<dt>To make these unittests work, prepare the local MySQL db as follows:</dt>
+<dd><p class="first">o CREATE USER unittest;
+o CREATE DATABASE unittest;</p>
+<blockquote class="last">
+<div><blockquote>
+<div>o GRANT SELECT ON unittest.* TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216;;
+o GRANT INSERT ON unittest.* TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216;;</div></blockquote>
+<p>o GRANT DROP ON unittest.* TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216;;
+o GRANT CREATE ON unittest.* TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216;;</p>
+</div></blockquote>
+</dd>
+</dl>
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.buildSmallDb">
+<tt class="descname">buildSmallDb</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.buildSmallDb" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.setUp">
+<tt class="descname">setUp</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.setUp" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.tearDown">
+<tt class="descname">tearDown</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.tearDown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testExecuteArbitraryQuery">
+<tt class="descname">testExecuteArbitraryQuery</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testExecuteArbitraryQuery" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testExecuteArbitraryQueryParameterized">
+<tt class="descname">testExecuteArbitraryQueryParameterized</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testExecuteArbitraryQueryParameterized" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testInsert">
+<tt class="descname">testInsert</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testInsert" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testInsertSeveralColums">
+<tt class="descname">testInsertSeveralColums</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testInsertSeveralColums" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testQueryIterator">
+<tt class="descname">testQueryIterator</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testQueryIterator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestMySQL.testTruncate">
+<tt class="descname">testTruncate</tt><big>(</big><big>)</big><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestMySQL.testTruncate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">pymysql_utils Package</a><ul>
+<li><a class="reference internal" href="#module-pymysql_utils.pymysql_utils"><tt class="docutils literal"><span class="pre">pymysql_utils</span></tt> Module</a></li>
+<li><a class="reference internal" href="#module-pymysql_utils.test_pymysql_utils"><tt class="docutils literal"><span class="pre">test_pymysql_utils</span></tt> Module</a></li>
+</ul>
+</li>
+</ul>
+
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/pymysql_utils.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="index.html">pymysql_utils 0.30 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Andreas Paepcke and Jagadish Venkatraman.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
