@@ -52,7 +52,7 @@ class MySQLDB(object):
         self.name = db
         self.cursors = []
         try:
-            self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
             #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
         
@@ -160,8 +160,13 @@ class MySQLDB(object):
         @type valueTupleArray: [(<anyMySQLCompatibleTypes>[<anyMySQLCompatibleTypes,...]])
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='userCountryTmp',suffix='.csv')
-        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)        
-        self.csvWriter.writerows(valueTupleArray)
+        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        # Can't use csvWriter.writerows() b/c some rows have 
+        # weird chars: self.csvWriter.writerows(valueTupleArray)        
+        for row in valueTupleArray:
+            # Convert each element in row to a string,
+            # including mixed-in Unicode Strings:
+            self.csvWriter.writerow([rowElement for rowElement in self.stringifyList(row)])
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
@@ -255,7 +260,7 @@ class MySQLDB(object):
         resList = []
         for el in colVals:
             if isinstance(el, basestring):
-                resList.append('"%s"' % el)
+                resList.append('"%s"' % el.encode('UTF-8', 'ignore'))
             else:
                 resList.append(el)
         return ','.join(map(str,resList))        
@@ -278,3 +283,23 @@ class MySQLDB(object):
                 cursor.close()
                 return
             yield nextRes
+
+    def stringifyList(self, iterable):
+        '''
+        Goes through the iterable. For each element, tries
+        to turn into a string, part of which attempts encoding
+        with the 'ascii' codec. Then encountering a unicode
+        char, that char is UTF-8 encoded.
+        
+        Acts as an iterator! Use like:
+        for element in stringifyList(someList):
+            print(element)
+        @param iterable: mixture of items of any type, including Unicode strings.
+        @type iterable: [<any>]
+        '''
+        for element in iterable:
+            try:
+                yield(str(element))
+            except UnicodeEncodeError:
+                yield element.encode('UTF-8','ignore')
+    
