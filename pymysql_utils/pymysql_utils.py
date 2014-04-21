@@ -10,15 +10,10 @@ Modifications:
 '''
 
 import csv
-import re
 import subprocess
-import sys
 import tempfile
+import MySQLdb
 
-import pymysql
-
-
-#import MySQLdb
 class MySQLDB(object):
     '''
     Shallow interface to MySQL databases. Some niceties nonetheless.
@@ -53,11 +48,11 @@ class MySQLDB(object):
         self.cursors = []
         try:
             #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
-            self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
-            #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
+            #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
+            self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
         
         #except MySQLdb.OperationalError:
-        except pymysql.OperationalError:
+        except MySQLdb.OperationalError:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s' %
                              (host, port, user, pwd, db))
