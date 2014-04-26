@@ -9,10 +9,12 @@ Modifications:
 
 '''
 
+import MySQLdb
+from _mysql_exceptions import ProgrammingError, OperationalError
 import csv
 import subprocess
 import tempfile
-import MySQLdb
+
 
 class MySQLDB(object):
     '''
@@ -57,6 +59,15 @@ class MySQLDB(object):
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s' %
                              (host, port, user, pwd, db))
         
+    def dbName(self):
+        '''
+        Return name of database to which this MySQLDB is connected.
+        
+        :return: name of database within MySQL server to which MySQLDB instance is connected.
+        :rtype: String
+        '''
+        return self.db
+    
     def close(self):
         '''
         Close all cursors that are currently still open.
@@ -81,6 +92,7 @@ class MySQLDB(object):
         :type tableName: String
         :param schema: dictionary mapping column names to column types
         :type schema: Dict<String,String>
+        :raise ValueError: if table to truncate does not exist or permissions issues.        
         '''
         colSpec = ''
         for colName, colVal in schema.items():
@@ -99,11 +111,16 @@ class MySQLDB(object):
 
         :param tableName: name of table
         :type tableName: String
+        :raise ValueError: if table to drop does not exist or permissions issues.        
         '''
         cursor = self.connection.cursor()
         try:
             cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
             self.connection.commit()
+        except OperationalError as e:
+            raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
+        except ProgrammingError as e:
+            raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
         finally:
             cursor.close()
 
@@ -113,10 +130,16 @@ class MySQLDB(object):
 
         :param tableName: name of table
         :type tableName: String
+        :raise ValueError: if table to truncate does not exist or permissions issues.
         '''
         cursor = self.connection.cursor()
         try:
-            cursor.execute('TRUNCATE TABLE %s' % tableName)
+            try:
+                cursor.execute('TRUNCATE TABLE %s' % tableName)
+            except OperationalError as e:
+                raise ValueError("In pymysql_utils truncateTable(): %s." % `e`)
+            except ProgrammingError as e:
+                raise ValueError("In pymysql_utils truncateTable(): %s." % `e`)
             self.connection.commit()
         finally:
             cursor.close()
@@ -134,7 +157,8 @@ class MySQLDB(object):
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
         try:
-            cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), self.ensureSQLTyping(colValues))
+            wellTypedColValues = self.ensureSQLTyping(colValues)
+            cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), wellTypedColValues)
             cursor.execute(cmd)
             self.connection.commit()
         finally:
@@ -265,7 +289,11 @@ class MySQLDB(object):
         for el in colVals:
             if isinstance(el, basestring):
                 resList.append('"%s"' % el.encode('UTF-8', 'ignore'))
-            else:
+            elif el is None:
+                resList.append('null')
+            elif isinstance(el, (list, dict, set)):
+                resList.append('"%s"' % str(el))
+            else: # e.g. numbers
                 resList.append(el)
         return ','.join(map(str,resList))        
         
