@@ -86,7 +86,7 @@ class TestMySQL(unittest.TestCase):
     def testExecuteArbitraryQueryParameterized(self):
         self.buildSmallDb()
         myVal = 130
-        self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal))
+        self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal,))
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual((130,), result)
         

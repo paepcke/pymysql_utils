@@ -12,6 +12,7 @@ Modifications:
 import MySQLdb
 from _mysql_exceptions import ProgrammingError, OperationalError
 import csv
+import re
 import subprocess
 import tempfile
 
@@ -23,6 +24,8 @@ class MySQLDB(object):
         for result in mySqlObj.query('SELECT * FROM foo'):
             print result
     '''
+
+    NON_ASCII_CHARS_PATTERN = re.compile(r'[^\x00-\x7F]+')
 
     def __init__(self, host='127.0.0.1', port=3306, user='root', passwd='', db='mysql'):
         '''
@@ -51,7 +54,8 @@ class MySQLDB(object):
         try:
             #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
-            self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
+            #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
+            self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
         
         #except MySQLdb.OperationalError:
         except MySQLdb.OperationalError:
@@ -262,10 +266,14 @@ class MySQLDB(object):
         Executes arbitrary query that is parameterized
         as in the Python string format statement. Ex:
         executeParameterized('SELECT %s FROM myTable', ('col1', 'col3'))
+        Note: params must be a tuple. Example: to update a column:: 
+            mysqldb.executeParameterized("UPDATE myTable SET col1=%s", (myVal,))
+        the comma after 'myVal' is mandatory; it indicates that the 
+        expression is a tuple.
 
         :param query: query with parameter placeholder
         :type query: string
-        :param params: actuals for the parameters
+        :param params: tuple of actuals for the parameters.
         :type params: (<any>)
         '''
         cursor=self.connection.cursor()                                                                        
@@ -288,14 +296,23 @@ class MySQLDB(object):
         resList = []
         for el in colVals:
             if isinstance(el, basestring):
-                resList.append('"%s"' % el.encode('UTF-8', 'ignore'))
+                try:
+                    # If value is not already UTF-8, encode it:
+                    cleanStr = unicode(el, 'UTF-8', 'replace')
+                except TypeError:
+                    # Value was already in Unicode, so all is well:
+                    cleanStr = el
+                resList.append('"%s"' % cleanStr)
             elif el is None:
                 resList.append('null')
             elif isinstance(el, (list, dict, set)):
                 resList.append('"%s"' % str(el))
             else: # e.g. numbers
                 resList.append(el)
-        return ','.join(map(str,resList))        
+        try:
+            return ','.join(map(unicode,resList))
+        except UnicodeEncodeError as e:
+            print('Unicode related error: %s' % `e`)
         
     def query(self, queryStr):
         '''
