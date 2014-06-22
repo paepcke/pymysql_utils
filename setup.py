@@ -1,8 +1,11 @@
 import multiprocessing
 from setuptools import setup, find_packages
+import os
+import glob
+
 setup(
     name = "pymysql_utils",
-    version = "0.34",
+    version = "0.47",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -17,13 +20,6 @@ setup(
 
     # Unit tests; they are initiated via 'python setup.py test'
     test_suite       = 'nose.collector', 
-
-    package_data = {
-        # If any package contains *.txt or *.rst files, include them:
-     #   '': ['*.txt', '*.rst'],
-        # And include any *.msg files found in the 'hello' package, too:
-     #   'hello': ['*.msg'],
-    },
 
     # metadata for upload to PyPI
     author = "Andreas Paepcke",
