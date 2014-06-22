@@ -3,9 +3,11 @@ from setuptools import setup, find_packages
 import os
 import glob
 
+datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
+
 setup(
     name = "pymysql_utils",
-    version = "0.47",
+    version = "0.48",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -20,6 +22,9 @@ setup(
 
     # Unit tests; they are initiated via 'python setup.py test'
     test_suite       = 'nose.collector', 
+
+    data_files = [('pymysql_utils/data', datafiles)],
+
 
     # metadata for upload to PyPI
     author = "Andreas Paepcke",
