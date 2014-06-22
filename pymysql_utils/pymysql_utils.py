@@ -245,19 +245,25 @@ class MySQLDB(object):
         finally:
             cursor.close()
             
-    def execute(self,query):                                                                                   
+    def execute(self,query, doCommit=True):                                                                                   
         '''
         Execute an arbitrary query, including
-        MySQL directives.
-
+        MySQL directives. For some funky directives
+        You get the MySQL error:
+        
+            Commands out of sync; you can't run this command now 
+            
+        For those, turn doCommit to False;
+        
         :param query: query or directive
         :type query: String
         '''
         
         cursor=self.connection.cursor()                                                                        
         try:                                                                                                   
-            cursor.execute(query)                                                                              
-            self.connection.commit()                                                                           
+            cursor.execute(query)
+            if doCommit:                                                                              
+                self.connection.commit()                                                                           
         finally:                                                                                               
             cursor.close()                                                                                     
                                                                                                                
