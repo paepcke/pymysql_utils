@@ -12,6 +12,8 @@ does no harm.
 
 The out-facing method is lookupIP(ipString)
 
+The underlying IP->Country information comes from http://software77.net/geo-ip/
+
 @author: paepcke
 '''
 import os
@@ -78,8 +80,8 @@ class IpCountryDict(unittest.TestCase):
         :type ipStr: String
         :param default: return value in case IP address country is not found.
         :type default: <any>
-        @return: 2-letter country code, 3-letter country code, and country string
-        @rtype: {(str,str,str) | defaultType}
+        :return: 2-letter country code, 3-letter country code, and country string
+        :rtype: {(str,str,str) | defaultType}
         '''
         try:
             return self.lookupIP(ipStr)
@@ -91,10 +93,12 @@ class IpCountryDict(unittest.TestCase):
         Top level lookup: pass an IP string, get a
         triplet: two-letter country code, three-letter country code,
         and full country.
-        @param ipStr: string of an IP address
-        @type ipStr: string
-        @return: 2-letter country code, 3-letter country code, and country string
-        @rtype: (str,str,str)
+        :param ipStr: string of an IP address
+        :type ipStr: string
+        :return: 2-letter country code, 3-letter country code, and country string
+        :rtype: (str,str,str)
+        :raise ValueError: when given IP address is None
+        :raise KeyError: when the country for the given IP is not found. 
         '''
         (ipNum, lookupKey) = self.ipStrToIntAndKey(ipStr)
         if ipNum is None or lookupKey is None:
@@ -106,6 +110,8 @@ class IpCountryDict(unittest.TestCase):
             except KeyError:
                 lookupKey = str(int(lookupKey) - 1).zfill(4)[0:4]
                 continue
+        if ipRangeChain is None:
+            raise KeyError('IP string is not a valid IP address: %s' % str(ipStr))
         for ipInfo in ipRangeChain:
             # Have (rangeStart,rangeEnd,country2Let,country3Let,county)
             # Sorted by rangeStart:
@@ -114,6 +120,9 @@ class IpCountryDict(unittest.TestCase):
             return(ipInfo[IpCountryDict.TWO_LETTER_POS], 
                    ipInfo[IpCountryDict.THREE_LETTER_POS],
                    ipInfo[IpCountryDict.COUNTRY_POS])
+        # If we get here, the IP is in a range in which
+        # the IP-->Country table has a hole:
+        return('ZZ','ZZZ','unknown')
         
         
             
@@ -121,10 +130,10 @@ class IpCountryDict(unittest.TestCase):
         '''
         Given an IP string, return two-tuple: the numeric
         int, and a lookup key into self.ipToCountryDict. 
-        @param ipStr: ip string like '171.64.65.66'
-        @type ipStr: string
-        @return: two-tuple of ip int and the first four digits, i.e. a lookup key. Like (16793600, 1679). Returns (None,None) if IP was not a four-octed str.
-        @rtype: (int,int)
+        :param ipStr: ip string like '171.64.65.66'
+        :type ipStr: string
+        :return: two-tuple of ip int and the first four digits, i.e. a lookup key. Like (16793600, 1679). Returns (None,None) if IP was not a four-octed str.
+        :rtype: (int,int)
         '''
         try:
             (oct0,oct1,oct2,oct3) = ipStr.split('.')
@@ -140,10 +149,13 @@ if __name__ == '__main__':
     lookup = IpCountryDict()
     #(ip,lookupKey) = lookup.ipStrToIntAndKey('171.64.64.64')
     (twoLetter,threeLetter,country) = lookup.lookupIP('171.64.75.96')
+    #*****lookup.assertEqual((twoLetter,threeLetter,country),('US','USA','United States'))
     print('%s, %s, %s' % (twoLetter,threeLetter,country))
     (twoLetter,threeLetter,country) = lookup.lookupIP('5.96.4.5')
     print('%s, %s, %s' % (twoLetter,threeLetter,country)) 
     (twoLetter,threeLetter,country) = lookup.lookupIP('91.96.4.5')
+    print('%s, %s, %s' % (twoLetter,threeLetter,country)) 
+    (twoLetter,threeLetter,country) = lookup.lookupIP('105.48.87.6')
     print('%s, %s, %s' % (twoLetter,threeLetter,country)) 
     
     
