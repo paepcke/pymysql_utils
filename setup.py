@@ -2,7 +2,7 @@ import multiprocessing
 from setuptools import setup, find_packages
 setup(
     name = "pymysql_utils",
-    version = "0.34",
+    version = "0.35",
     packages = find_packages(),
 
     # Dependencies on other packages:
