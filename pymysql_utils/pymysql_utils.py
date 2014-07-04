@@ -323,7 +323,8 @@ class MySQLDB(object):
     def query(self, queryStr):
         '''
         Query iterator. Given a query, return one result for each
-        subsequent call.
+        subsequent call. When all results have been retrieved,
+        the iterator returns None.
 
         :param queryStr: query
         :type queryStr: String
@@ -337,7 +338,7 @@ class MySQLDB(object):
             nextRes = cursor.fetchone()
             if nextRes is None:
                 cursor.close()
-                return
+                return None
             yield nextRes
 
     def stringifyList(self, iterable):
