@@ -338,7 +338,7 @@ class MySQLDB(object):
             nextRes = cursor.fetchone()
             if nextRes is None:
                 cursor.close()
-                return None
+                return
             yield nextRes
 
     def stringifyList(self, iterable):
