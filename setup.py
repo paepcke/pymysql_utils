@@ -7,7 +7,7 @@ datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
 
 setup(
     name = "pymysql_utils",
-    version = "0.49",
+    version = "0.50",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -22,9 +22,6 @@ setup(
 
     # Unit tests; they are initiated via 'python setup.py test'
     test_suite       = 'nose.collector', 
-
-    data_files = [('pymysql_utils/data', datafiles)],
-
 
     # metadata for upload to PyPI
     author = "Andreas Paepcke",
