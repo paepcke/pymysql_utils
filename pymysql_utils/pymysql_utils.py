@@ -17,6 +17,10 @@ import subprocess
 import tempfile
 
 
+class DupKeyAction:
+    IGNORE  = 0
+    REPLACE = 1
+
 class MySQLDB(object):
     '''
     Shallow interface to MySQL databases. Some niceties nonetheless.
@@ -168,7 +172,7 @@ class MySQLDB(object):
         finally:
             cursor.close()
     
-    def bulkInsert(self, tblName, colNameTuple, valueTupleArray):
+    def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction.IGNORE):
         '''
         Inserts large number of rows into given table. Strategy: write
         the values to a temp file, then generate a LOAD INFILE LOCAL
@@ -186,6 +190,11 @@ class MySQLDB(object):
         :param valueTupleArray: array of n-tuples, which hold the values. Order of
                 values must correspond to order of column names in colNameTuple.
         :type valueTupleArray: [(<anyMySQLCompatibleTypes>[<anyMySQLCompatibleTypes,...]])
+        :param onDupKey: determines action when incoming row replicates existing row in 
+            a unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
+            skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
+            the existing tuple.
+        :raise ValueError if bad parameter.
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='userCountryTmp',suffix='.csv')
         self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -207,16 +216,24 @@ class MySQLDB(object):
                 colSpec += ',' + colName
             colSpec += ')'   
         try:
+            if onDupKey == DupKeyAction.IGNORE:
+                dupAction = '' # MySQL default
+            elif onDupKey == DupKeyAction.REPLACE:
+                dupAction = 'REPLACE'
+            else:
+                raise ValueError("Parameter onDupKey to bulkInsert method must be of type DupKeyAction; is %s" % str(onDupKey))
+            
             # Remove quotes from the values inside the colNameTuple's:
-            mySQLCmd = ("USE %s; LOAD DATA LOCAL INFILE '%s' INTO TABLE %s FIELDS TERMINATED BY ',' " +\
+            mySQLCmd = ("USE %s; LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
                         "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '' LINES TERMINATED BY '\\n' %s" +\
-                        ";commit;") %  (self.db, tmpCSVFile.name, tblName, colSpec)
+                        ";commit;") %  (self.db, tmpCSVFile.name, dupAction, tblName, colSpec)
             if len(self.pwd) > 0:
                 subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, '-e', mySQLCmd])
             else:
                 subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-e', mySQLCmd])
         finally:
             tmpCSVFile.close()
+            self.execute('commit;')
     
     def update(self, tblName, colName, newVal, fromCondition=None):
         '''

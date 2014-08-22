@@ -10,8 +10,9 @@ Created on Sep 24, 2013
 from collections import OrderedDict
 import unittest
 
-from pymysql_utils import MySQLDB
+from pymysql_utils import MySQLDB, DupKeyAction
 
+TEST_ALL = False
 
 #from mysqldb import MySQLDB
 class TestMySQL(unittest.TestCase):
@@ -41,6 +42,7 @@ class TestMySQL(unittest.TestCase):
         self.mysqldb.close()
 
 
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsert(self):
         schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
@@ -50,6 +52,7 @@ class TestMySQL(unittest.TestCase):
         #for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
  
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsertSeveralColums(self):
         schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
@@ -58,6 +61,7 @@ class TestMySQL(unittest.TestCase):
         res = self.mysqldb.query("SELECT * FROM unittest").next()
         self.assertEqual((10,'My Poem'), res)
          
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testQueryIterator(self):
         self.buildSmallDb()
         for rowNum, result in enumerate(self.mysqldb.query('SELECT col1,col2 FROM unittest')):
@@ -68,6 +72,7 @@ class TestMySQL(unittest.TestCase):
             elif rowNum == 2:
                 self.assertEqual((30,'col3'), result)
     
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testTruncate(self):
         self.buildSmallDb()
         self.mysqldb.truncateTable('unittest')
@@ -77,12 +82,14 @@ class TestMySQL(unittest.TestCase):
         except StopIteration:
             pass
     
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testExecuteArbitraryQuery(self):
         self.buildSmallDb()
         self.mysqldb.execute("UPDATE unittest SET col1=120")
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual((120,), result)
         
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testExecuteArbitraryQueryParameterized(self):
         self.buildSmallDb()
         myVal = 130
@@ -90,6 +97,20 @@ class TestMySQL(unittest.TestCase):
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual((130,), result)
         
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testBulkInsert(self):
+        self.buildSmallDb()
+        self.mysqldb.execute('ALTER TABLE unittest ADD PRIMARY KEY(col1)')
+        colNames = ['col1','col2']
+        colValues = [(10, 'newCol1')]
+
+        self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        self.assertTupleEqual(('col1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        
+        self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
+        self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        
+
     def buildSmallDb(self):
         schema = OrderedDict([('col1','INT'),('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
