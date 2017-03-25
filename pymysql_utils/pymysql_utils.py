@@ -9,17 +9,21 @@ Modifications:
 
 '''
 
-import MySQLdb
-from _mysql_exceptions import ProgrammingError, OperationalError
 import csv
+import os
 import re
 import subprocess
 import tempfile
+import socket
+
+import MySQLdb
+from _mysql_exceptions import ProgrammingError, OperationalError
 
 
 class DupKeyAction:
     IGNORE  = 0
     REPLACE = 1
+    UPDATE  = 2
 
 class MySQLDB(object):
     '''
@@ -54,15 +58,28 @@ class MySQLDB(object):
         self.pwd  = passwd
         self.db   = db
         self.name = db
-        self.cursors = []
+        # Will hold querySt->cursor for two purposes:
+        # Ability to retrieve number of results in SELECT,
+        # Ensure that all cursors are closed (see query()):
+        self.cursors = {}
+        
+        # Find location of mysql client program:
         try:
-            #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
-            #self.connection = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
-            #self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, local_infile=1)
+            # The following doesn't work when running in Eclipse (gives usage for 'which'),
+            # because it is running in the system env, not the bash env which
+            # its usually enriched PATH var.
+            self.mysql_loc = subprocess.check_output(['which', 'mysql']).strip()
+        except subprocess.CalledProcessError as e:
+            # Last resort: try /usr/local/bin/mysql:
+            if os.path.exists('/usr/local/bin/mysql'):
+              self.mysql_loc = '/usr/local/bin/mysql'
+            else:
+              raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
+
+        try:
             self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
         
-        #except MySQLdb.OperationalError:
-        except MySQLdb.OperationalError as e:
+        except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
                              (host, port, user, pwd, db, `e`))
@@ -80,7 +97,7 @@ class MySQLDB(object):
         '''
         Close all cursors that are currently still open.
         '''
-        for cursor in self.cursors:
+        for cursor in self.cursors.values():
             try:
                 cursor.close()
             except:
@@ -172,7 +189,7 @@ class MySQLDB(object):
         finally:
             cursor.close()
     
-    def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction.IGNORE):
+    def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction):
         '''
         Inserts large number of rows into given table. Strategy: write
         the values to a temp file, then generate a LOAD INFILE LOCAL
@@ -181,7 +198,7 @@ class MySQLDB(object):
         is not supported in this MySQL version...' even though MySQL
         is set up to allow the op (load-infile=1 for both mysql and
         mysqld in my.cnf).
-
+        
         :param tblName: table into which to insert
         :type tblName: string
         :param colNameTuple: tuple containing column names in proper order, i.e. 
@@ -193,11 +210,21 @@ class MySQLDB(object):
         :param onDupKey: determines action when incoming row replicates existing row in 
             a unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
             skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
-            the existing tuple.
-        :raise ValueError if bad parameter.
+            the existing tuple. By default, an attempt to insert a duplicate key
+            raises a ValueError.
+        :raise ValueError if bad parameter or duplicate key without onDupKey set
+            to DupKeyAction.REPLACE or DupKeyAction.IGNORE.
+
         '''
-        tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='userCountryTmp',suffix='.csv')
-        self.csvWriter = csv.writer(tmpCSVFile, dialect='excel-tab', lineterminator='\n', delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv')
+        # Allow MySQL to read this tmp file:
+        os.chmod(tmpCSVFile.name, 0644)
+        self.csvWriter = csv.writer(tmpCSVFile, 
+                                    dialect='excel-tab', 
+                                    lineterminator='\n', 
+                                    delimiter=',', 
+                                    quotechar='"', 
+                                    quoting=csv.QUOTE_MINIMAL)
         # Can't use csvWriter.writerows() b/c some rows have 
         # weird chars: self.csvWriter.writerows(valueTupleArray)        
         for row in valueTupleArray:
@@ -225,12 +252,16 @@ class MySQLDB(object):
             
             # Remove quotes from the values inside the colNameTuple's:
             mySQLCmd = ("USE %s; LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
-                        "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '' LINES TERMINATED BY '\\n' %s" +\
+                        "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s" +\
                         ";commit;") %  (self.db, tmpCSVFile.name, dupAction, tblName, colSpec)
             if len(self.pwd) > 0:
-                subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, '-e', mySQLCmd])
+                status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, 'unittest', '-e', mySQLCmd])
+                if status != 0:
+                  self.fail("Could not load test data into unittest.unittest.")
             else:
-                subprocess.call(['mysql', '--local_infile=1', '-u', self.user, '-e', mySQLCmd])
+                status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, 'unittest', '-e', mySQLCmd])
+                if status != 0:
+                  raise RuntimeError("Could not load test data into unittest.unittest.")
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
@@ -315,7 +346,10 @@ class MySQLDB(object):
 
         :param colVals: list of column values destined for a MySQL table
         :type colVals: <any>
+        :return string of string-separated, properly typed column values
+        :rtype string
         '''
+
         resList = []
         for el in colVals:
             if isinstance(el, basestring):
@@ -345,11 +379,15 @@ class MySQLDB(object):
 
         :param queryStr: query
         :type queryStr: String
+        :returns iterator of query results
+        :rtype iterator of tuple
         '''
+
         queryStr = queryStr.encode('UTF-8')
         cursor = self.connection.cursor()
-        # For if caller never exhausts the results by repeated calls:
-        self.cursors.append(cursor)
+        # For if caller never exhausts the results by repeated calls,
+        # and to find cursor by query to get (e.g.) num results:
+        self.cursors[queryStr] = cursor
         cursor.execute(queryStr)
         while True:
             nextRes = cursor.fetchone()
@@ -357,6 +395,23 @@ class MySQLDB(object):
                 cursor.close()
                 return
             yield nextRes
+
+    def len(self, queryStr):
+      '''
+      Given a query string, after that string was executed 
+      via a call to query(), and before the result iterator
+      has been exhausted: return number of SELECT results.
+
+      :param queryStr: query that was used in a prior call to query()
+      :type queryStr: string
+      :return number of records in SELECT result.
+      :rtype: int
+      '''
+
+      try:
+        return self.cursors[queryStr].rowcount
+      except Exception:
+        raise ValueError("No length associated with given queryStr (%s)" % queryStr)
 
     def stringifyList(self, iterable):
         '''

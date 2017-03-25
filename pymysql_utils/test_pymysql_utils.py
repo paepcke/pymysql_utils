@@ -3,31 +3,37 @@ Created on Sep 24, 2013
 
 @author: paepcke
 '''
+
 # TODO: Test calling query() multiple times with several queries and get results alternately from the iterators
 # TODO: In: cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), ','.join(map(str, colValues)))
-#                 the map removes quotes from strins: ','join(map(str,('My poem', 10)) --> (My Poem, 10) 
+#                 the map removes quotes from strings: ','join(map(str,('My poem', 10)) --> (My Poem, 10) 
+
+# To run these tests, you need a local MySQL server,
+# an account called 'unittest' on that server, and a
+# database called 'unittest', also on that server.
+#
+# User unittest must be able to log in without a password, 
+# the user only needs permissions for the unittest database.
+# Here are the necessary MySQL commands:
+
+#   CREATE USER unittest@localhost;
+#   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE ON unittest.* TO unittest@localhost;
+
 
 from collections import OrderedDict
 import unittest
 
 from pymysql_utils import MySQLDB, DupKeyAction
+from _sqlite3 import OperationalError
 
+#*******TEST_ALL = True
 TEST_ALL = False
 
 #from mysqldb import MySQLDB
 class TestMySQL(unittest.TestCase):
     '''
-    To make these unittests work, prepare the local MySQL db as follows:
-        o CREATE USER unittest;
-        o CREATE DATABASE unittest;
-		o GRANT SELECT ON unittest.* TO 'unittest'@'localhost';
-		o GRANT INSERT ON unittest.* TO 'unittest'@'localhost';
-	    o GRANT DROP ON unittest.* TO 'unittest'@'localhost';
-	    o GRANT CREATE ON unittest.* TO 'unittest'@'localhost';
 
     '''
-    
-
 
     def setUp(self):
         #self.mysqldb = MySQLDB(host='127.0.0.1', port=3306, user='unittest', passwd='', db='unittest')
@@ -97,22 +103,37 @@ class TestMySQL(unittest.TestCase):
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual((130,), result)
         
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
+      
+        # Build test db (this already tests basic bulkinsert):
+        #                  col1   col2
+        #                   10,  'col1'
+        #                   20,  'col2'
+        #                   30,  'col3'
         self.buildSmallDb()
         self.mysqldb.execute('ALTER TABLE unittest ADD PRIMARY KEY(col1)')
+        
+        # Provoke a MySQL error: duplicate primary key (i.e. 10): 
+        # Add another row:  10,  'newCol1':
         colNames = ['col1','col2']
         colValues = [(10, 'newCol1')]
-
-        self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        try:
+          self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        except Exception as e:
+          print(`e`)
+            
+        # First tuple should still be (10, 'col1'):
         self.assertTupleEqual(('col1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
+        # Try update again, but with replacement:
         self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
         self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
 
     def buildSmallDb(self):
         schema = OrderedDict([('col1','INT'),('col2','TEXT')])
+        self.mysqldb.dropTable('unittest')
         self.mysqldb.createTable('unittest', schema)
         colNames = ['col1','col2']
         colValues = [(10, 'col1'),(20,'col2'),(30,'col3')]
