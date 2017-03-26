@@ -21,12 +21,15 @@ Created on Sep 24, 2013
 
 
 from collections import OrderedDict
-import unittest
+import socket
 import subprocess
+import unittest
 
 from pymysql_utils import MySQLDB, DupKeyAction
+import pymysql_utils
 
-#*******TEST_ALL = True
+
+#*********TEST_ALL = True
 TEST_ALL = False
 
 #from mysqldb import MySQLDB
@@ -36,7 +39,6 @@ class TestMySQL(unittest.TestCase):
     '''
 
     def setUp(self):
-        #self.mysqldb = MySQLDB(host='127.0.0.1', port=3306, user='unittest', passwd='', db='unittest')
         try:
             self.mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
         except ValueError as e:
@@ -47,7 +49,13 @@ class TestMySQL(unittest.TestCase):
         self.mysqldb.dropTable('unittest')
         self.mysqldb.close()
 
-    #*******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    # ----------------------- Table Manilupation -------------------------
+
+    #-------------------------
+    # Creating and Dropping Tables 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testCreateAndDropTable(self):
         mySchema = {
           'col1' : 'INT',
@@ -87,6 +95,31 @@ class TestMySQL(unittest.TestCase):
         self.assertEqual(cursor.rowcount, 0)
         cursor.close()
 
+    #-------------------------
+    # Table Truncation 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testTruncate(self):
+      
+        # Initial test db with known num of rows:
+        rows_in_test_db = self.buildSmallDb()
+        cursor = self.mysqldb.connection.cursor()
+        cursor.execute('SELECT * FROM unittest;')
+        self.assertEqual(cursor.rowcount, rows_in_test_db)
+        
+        self.mysqldb.truncateTable('unittest')
+        
+        cursor.execute('SELECT * FROM unittest;')
+        self.assertEqual(cursor.rowcount, 0)
+        cursor.close()
+
+    # ----------------------- Insertion and Update -------------------------
+    
+    #-------------------------
+    # Insert One Row 
+    #--------------
+    
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsert(self):
         schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
@@ -97,51 +130,24 @@ class TestMySQL(unittest.TestCase):
         #for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
  
+    #-------------------------
+    # Insert Several Columns 
+    #--------------
+
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
-    def testInsertSeveralColums(self):
+    def testInsertSeveralColumns(self):
         schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
         self.mysqldb.createTable('unittest', schema)
         colnameValueDict = OrderedDict([('col1',10), ('col2','My Poem')])
         self.mysqldb.insert('unittest', colnameValueDict)
         res = self.mysqldb.query("SELECT * FROM unittest").next()
         self.assertEqual((10,'My Poem'), res)
-         
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
-    def testQueryIterator(self):
-        self.buildSmallDb()
-        for rowNum, result in enumerate(self.mysqldb.query('SELECT col1,col2 FROM unittest')):
-            if rowNum == 0:
-                self.assertEqual((10,'col1'), result)
-            elif rowNum == 1:
-                self.assertEqual((20,'col2'), result)
-            elif rowNum == 2:
-                self.assertEqual((30,'col3'), result)
     
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
-    def testTruncate(self):
-        self.buildSmallDb()
-        self.mysqldb.truncateTable('unittest')
-        try:
-            self.mysqldb.query("SELECT * FROM unittest").next()
-            self.fail()
-        except StopIteration:
-            pass
+
+    #-------------------------
+    # Bulk Insertion 
+    #--------------
     
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
-    def testExecuteArbitraryQuery(self):
-        self.buildSmallDb()
-        self.mysqldb.execute("UPDATE unittest SET col1=120")
-        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
-            self.assertEqual((120,), result)
-        
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
-    def testExecuteArbitraryQueryParameterized(self):
-        self.buildSmallDb()
-        myVal = 130
-        self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal,))
-        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
-            self.assertEqual((130,), result)
-        
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
       
@@ -183,8 +189,171 @@ class TestMySQL(unittest.TestCase):
         # name header plus that one warning:
         self.assertEqual(len(warnings), 2)
         self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        
+    #-------------------------
+    # Updates 
+    #--------------
 
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testUpdate(self):
+      
+        num_rows = self.buildSmallDb()
+        cursor = self.mysqldb.connection.cursor()
+        
+        # Initially, col2 of row0 must be 'col1':
+        cursor.execute('SELECT col2 FROM unittest WHERE col1 = 10')
+        col2_row_zero = cursor.fetchone()
+        self.assertTupleEqual(col2_row_zero, ('col1',))
+        
+        self.mysqldb.update('unittest', 'col1', 40, fromCondition='col1 = 10')
+        
+        # Now no col1 with value 10 should exist:
+        cursor.execute('SELECT col2 FROM unittest WHERE col1 = 10')
+        self.assertEqual(cursor.rowcount, 0)
+        # But a row with col1 == 40 should have col2 == 'col1':
+        cursor.execute('SELECT col2 FROM unittest WHERE col1 = 40')
+        col2_res = cursor.fetchone()
+        self.assertTupleEqual(col2_res, ('col1',))
+        
+        # Update *all* rows in one column:
+        self.mysqldb.update('unittest', 'col1', 0)
+        cursor.execute('SELECT count(*) FROM unittest WHERE col1 = 0')
+        res_count = cursor.fetchone()
+        self.assertTupleEqual(res_count, (num_rows,))
+    
+    
+    # ----------------------- Queries -------------------------         
+
+    #-------------------------
+    # Query With Result Iteration 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testQueryIterator(self):
+        self.buildSmallDb()
+
+        for rowNum, result in enumerate(self.mysqldb.query('SELECT col1,col2 FROM unittest')):
+            if rowNum == 0:
+                self.assertEqual((10,'col1'), result)
+            elif rowNum == 1:
+                self.assertEqual((20,'col2'), result)
+            elif rowNum == 2:
+                self.assertEqual((30,'col3'), result)
+
+        # Test the dict cursor
+        self.mysqldb.close()
+        self.mysqldb = MySQLDB(host='localhost', 
+                               user='unittest', 
+                               db='unittest', 
+                               cursor_class=pymysql_utils.Cursors.DICT)
+        
+        for result in self.mysqldb.query('SELECT col1,col2 FROM unittest'):
+          
+            self.assertIsInstance(result, dict)
+            
+            if result['col1'] == 10:
+                self.assertEqual(result['col2'], 'col1')
+            elif result['col1'] == 20:
+                self.assertEqual(result['col2'], 'col2')
+            elif result['col1'] == 30:
+                self.assertEqual(result['col2'], 'col3')
+
+    #-------------------------
+    # Query Unparameterized 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testExecuteArbitraryQuery(self):
+        self.buildSmallDb()
+        self.mysqldb.execute("UPDATE unittest SET col1=120")
+        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
+            self.assertEqual((120,), result)
+        
+    #-------------------------
+    # Query Parameterized 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testExecuteArbitraryQueryParameterized(self):
+        self.buildSmallDb()
+        myVal = 130
+        self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal,))
+        for result in self.mysqldb.query('SELECT col1 FROM unittest'):
+            self.assertEqual((130,), result)
+        
+    #-------------------------
+    # Reading System Variables 
+    #--------------
+
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testReadSysVariable(self):
+        this_host = socket.gethostname()
+        mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()
+        self.assertEqual(mysql_hostname, this_host)
+
+    #-------------------------
+    # User-Level Variables 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testUserVariables(self):
+
+        pre_foo = self.mysqldb.query("SELECT @foo").next()
+        self.assertEqual(pre_foo, (None,))
+        
+        self.mysqldb.execute("SET @foo = 'new value';")
+        
+        post_foo = self.mysqldb.query("SELECT @foo").next()
+        self.assertEqual(post_foo, ('new value',))
+        
+        self.mysqldb.execute("SET @foo = 'NULL';")
+
+    #-------------------------
+    # testDbName 
+    #--------------
+
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testDbName(self):
+        self.assertEqual(self.mysqldb.dbName(), 'unittest')
+    
+            
+    #*******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testWithMySQLPassword(self):
+        
+        self.buildSmallDb()
+        local_mysqldb = None
+        try:
+            # Set a password for the unittest user:
+            self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = 'foobar';")
+            
+            # We should be unable to log in without a pwd:
+            with self.assertRaises(ValueError):
+                local_mysqldb = MySQLDB(host='localhost', user='unittest', db='unittest')
+                
+            # Open new pymysql_db.MySQLDb instance, supplying pwd: 
+            local_mysqldb = MySQLDB(host='localhost', user='unittest', passwd='foobar', db='unittest')
+            # Do a test query:
+            res = local_mysqldb.query("SELECT col2 FROM unittest WHERE col1 = 10;").next()
+            self.assertEqual(res, ('col1',))
+        finally:
+            # Make sure the remove the pwd from user unittest,
+            # so that other tests will run successfully:
+            self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
+            if local_mysqldb is not None:
+              local_mysqldb.close()
+                          
+    # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):
+        '''
+        Creates a two-col, three-row table in database
+        unittest. The table is called 'unittest'.
+        Returns number of rows created.
+            col1       col2
+            ----------------
+             10       'col1'
+             20       'col2'
+             30       'col3'
+        '''
         schema = OrderedDict([('col1','INT'),('col2','TEXT')])
         self.mysqldb.dropTable('unittest')
         self.mysqldb.createTable('unittest', schema)
@@ -192,6 +361,7 @@ class TestMySQL(unittest.TestCase):
         colValues = [(10, 'col1'),(20,'col2'),(30,'col3')]
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
         self.assertIsNone(warnings)
+        return 3
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testQuery']

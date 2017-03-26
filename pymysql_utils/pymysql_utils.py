@@ -20,6 +20,10 @@ from warnings import filterwarnings, resetwarnings
 
 import MySQLdb
 from MySQLdb import Warning as db_warning
+from MySQLdb.cursors import DictCursor as DictCursor
+from MySQLdb.cursors import SSCursor as SSCursor
+from MySQLdb.cursors import SSDictCursor as SSDictCursor
+
 from _mysql_exceptions import ProgrammingError, OperationalError
 
 
@@ -28,6 +32,16 @@ class DupKeyAction:
     IGNORE  = 1
     REPLACE = 2
 
+# Cursor classes as per: 
+#    http://mysql-python.sourceforge.net/MySQLdb-1.2.2/public/MySQLdb.cursors.BaseCursor-class.html
+# Used to pass to query() method if desired:   
+
+class Cursors:
+    BASIC   			  = None
+    DICT     			  = DictCursor
+    SS_CURSOR       = SSCursor
+    SS_DICT_CURSOR  = SSDictCursor
+                      
 class MySQLDB(object):
     '''
     Shallow interface to MySQL databases. Some niceties nonetheless.
@@ -38,8 +52,26 @@ class MySQLDB(object):
 
     NON_ASCII_CHARS_PATTERN = re.compile(r'[^\x00-\x7F]+')
 
-    def __init__(self, host='127.0.0.1', port=3306, user='root', passwd='', db='mysql'):
+    # ----------------------- Top-Level Housekeeping -------------------------
+
+    #-------------------------
+    # Constructor
+    #--------------
+
+    def __init__(self, 
+                 host='127.0.0.1', 
+                 port=3306, 
+                 user='root', 
+                 passwd='', 
+                 db='mysql',
+                 cursor_class=None):
         '''
+        Creates connection to the underlying MySQL database.
+        This connection is maintained until method close()
+        is called. The optional cursor_class controls the
+        format in which query results are returned. The 
+        Values must be one of Cursors.DICT, Cursors.SS_CURSOR,
+        etc. See definition of class Cursors above. 
         
         :param host: MySQL host
         :type host: string
@@ -51,11 +83,19 @@ class MySQLDB(object):
         :type passwd: string
         :param db: database to connect to within server
         :type db: string
+        :param cursor_class: choice of how rows are returned
+        :type cursor_class: Cursors
+    
         '''
         
         # If all arguments are set to None, we are unittesting:
         if all(arg is None for arg in (host,port,user,passwd,db)):
             return
+        
+        if cursor_class is not None:
+          # Ensure we caller passed a valid cursor class:
+          if cursor_class not in [DictCursor, SSCursor, SSDictCursor]:
+              raise ValueError("Non-existing cursor class '%s'" % str(cursor_class))
         
         self.user = user
         self.pwd  = passwd
@@ -80,12 +120,30 @@ class MySQLDB(object):
               raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
 
         try:
-            self.connection = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db,charset='utf8')             
+            if cursor_class is None:
+              self.connection = MySQLdb.connect(host=host,
+                                                port=port, 
+                                                user=user, 
+                                                passwd=passwd, 
+                                                db=db,
+                                                charset='utf8')
+            else:
+              self.connection = MySQLdb.connect(host=host, 
+                                                port=port, 
+                                                user=user, 
+                                                passwd=passwd, 
+                                                db=db,
+                                                charset='utf8',
+                                                cursorclass=cursor_class)
         
         except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
                              (host, port, user, pwd, db, `e`))
+
+    #-------------------------
+    # dbName 
+    #--------------
         
     def dbName(self):
         '''
@@ -96,6 +154,10 @@ class MySQLDB(object):
         '''
         return self.db
     
+    #-------------------------
+    # close 
+    #--------------
+
     def close(self):
         '''
         Close all cursors that are currently still open.
@@ -110,6 +172,12 @@ class MySQLDB(object):
         except:
             pass
 
+    # ----------------------- Table Management -------------------------
+
+    #-------------------------
+    # createTable
+    #--------------
+    
     def createTable(self, tableName, schema, temporary=False):
         '''
         Create new table, given its name, and schema.
@@ -133,6 +201,10 @@ class MySQLDB(object):
         finally:
             cursor.close()
 
+    #-------------------------
+    # dropTable
+    #--------------
+
     def dropTable(self, tableName):
         '''
         Delete table safely. No errors
@@ -154,6 +226,10 @@ class MySQLDB(object):
         finally:
             cursor.close()
 
+    #-------------------------
+    # truncateTable 
+    #--------------
+
     def truncateTable(self, tableName):
         '''
         Delete all table rows. No errors
@@ -174,6 +250,12 @@ class MySQLDB(object):
         finally:
             cursor.close()
 
+    # ----------------------- Insertion and Updates -------------------------
+
+    #-------------------------
+    # insert 
+    #--------------
+
     def insert(self, tblName, colnameValueDict):
         '''
         Given a dictionary mapping column names to column values,
@@ -187,12 +269,16 @@ class MySQLDB(object):
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
         try:
-            wellTypedColValues = self.ensureSQLTyping(colValues)
+            wellTypedColValues = self._ensureSQLTyping(colValues)
             cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), wellTypedColValues)
             cursor.execute(cmd)
             self.connection.commit()
         finally:
             cursor.close()
+    
+    #-------------------------
+    # bulkInsert 
+    #--------------
     
     def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction.PREVENT):
         '''
@@ -252,7 +338,7 @@ class MySQLDB(object):
         for row in valueTupleArray:
             # Convert each element in row to a string,
             # including mixed-in Unicode Strings:
-            self.csvWriter.writerow([rowElement for rowElement in self.stringifyList(row)])
+            self.csvWriter.writerow([rowElement for rowElement in self._stringifyList(row)])
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
@@ -300,6 +386,10 @@ class MySQLDB(object):
             self.execute('commit;')
             return None if len(mysql_warnings) == 0 else mysql_warnings.strip().split('\n')
     
+    #-------------------------
+    # update 
+    #--------------
+    
     def update(self, tblName, colName, newVal, fromCondition=None):
         '''
         Update one column with a new value.
@@ -326,12 +416,75 @@ class MySQLDB(object):
             self.connection.commit()
         finally:
             cursor.close()
+
+    # ----------------------- Queries -------------------------
+        
+    #-------------------------
+    # query 
+    #--------------
+    
+    def query(self, queryStr):
+        '''
+        Query iterator. Given a query, return one result for each
+        subsequent call. When all results have been retrieved,
+        the iterator returns None.
+        
+        IMPORTANT: what is returned is an *iterator*. So you
+        need to call next() to get the first result, even if
+        there is only one.
+
+        :param queryStr: the query to submit to MySQL
+        :type queryStr: String
+        :returns iterator of query results
+        :rtype iterator of tuple
+        '''
+
+        queryStr = queryStr.encode('UTF-8')
+        # For if caller never exhausts the results by repeated calls,
+        # and to find cursor by query to get (e.g.) num results:
+        self.cursors[queryStr] = cursor = self.connection.cursor()
+        cursor.execute(queryStr)
+        while True:
+            nextRes = cursor.fetchone()
+            if nextRes is None:
+                cursor.close()
+                return
+            yield nextRes
+
+    #-------------------------
+    # result_count 
+    #--------------
+
+    def result_count(self, queryStr):
+      '''
+      Given a query string, after that string was executed 
+      via a call to query(), and before the result iterator
+      has been exhausted: return number of SELECT results.
+
+      :param queryStr: query that was used in a prior call to query()
+      :type queryStr: string
+      :return number of records in SELECT result.
+      :rtype: int
+      '''
+
+      try:
+        return self.cursors[queryStr].rowcount
+      except Exception:
+        raise ValueError("No length associated with given queryStr (%s)" % queryStr)
+
+    
+    #-------------------------
+    # execute 
+    #--------------
             
     def execute(self,query, doCommit=True):                                                                                   
         '''
         Execute an arbitrary query, including
-        MySQL directives. For some funky directives
-        You get the MySQL error:
+        MySQL directives. Return value is undefined.
+        For SELECT queries or others that return
+        results from MySQL, use the query() method. 
+        
+        Note: For some funky directives you get the MySQL error:
         
             Commands out of sync; you can't run this command now 
             
@@ -339,6 +492,7 @@ class MySQLDB(object):
         
         :param query: query or directive
         :type query: String
+        :return <undefined>
         '''
         
         cursor=self.connection.cursor()                                                                        
@@ -349,11 +503,20 @@ class MySQLDB(object):
         finally:                                                                                               
             cursor.close()                                                                                     
                                                                                                                
+
+    #-------------------------
+    # executeParameterized
+    #--------------
+    
     def executeParameterized(self,query,params):                                                                      
         '''
         Executes arbitrary query that is parameterized
         as in the Python string format statement. Ex:
         executeParameterized('SELECT %s FROM myTable', ('col1', 'col3'))
+        
+        Return value is undefined. For SELECT queries or others that return
+        results from MySQL, use the query() method.        
+
         Note: params must be a tuple. Example: to update a column:: 
             mysqldb.executeParameterized("UPDATE myTable SET col1=%s", (myVal,))
         the comma after 'myVal' is mandatory; it indicates that the 
@@ -363,6 +526,7 @@ class MySQLDB(object):
         :type query: string
         :param params: tuple of actuals for the parameters.
         :type params: (<any>)
+        :return <undefined>        
         '''
         cursor=self.connection.cursor()                                                                        
         try:                                                                                                   
@@ -370,8 +534,14 @@ class MySQLDB(object):
             self.connection.commit()                                                                           
         finally:                                                                                               
             cursor.close()  
-                    
-    def ensureSQLTyping(self, colVals):
+
+    # ----------------------- Utilities -------------------------                    
+    
+    #-------------------------
+    # _ensureSQLTyping
+    #--------------
+    
+    def _ensureSQLTyping(self, colVals):
         '''
         Given a list of items, return a string that preserves
         MySQL typing. Example: (10, 'My Poem') ---> '10, "My Poem"'
@@ -404,50 +574,12 @@ class MySQLDB(object):
             return ','.join(map(unicode,resList))
         except UnicodeEncodeError as e:
             print('Unicode related error: %s' % `e`)
-        
-    def query(self, queryStr):
-        '''
-        Query iterator. Given a query, return one result for each
-        subsequent call. When all results have been retrieved,
-        the iterator returns None.
-
-        :param queryStr: query
-        :type queryStr: String
-        :returns iterator of query results
-        :rtype iterator of tuple
-        '''
-
-        queryStr = queryStr.encode('UTF-8')
-        cursor = self.connection.cursor()
-        # For if caller never exhausts the results by repeated calls,
-        # and to find cursor by query to get (e.g.) num results:
-        self.cursors[queryStr] = cursor
-        cursor.execute(queryStr)
-        while True:
-            nextRes = cursor.fetchone()
-            if nextRes is None:
-                cursor.close()
-                return
-            yield nextRes
-
-    def len(self, queryStr):
-      '''
-      Given a query string, after that string was executed 
-      via a call to query(), and before the result iterator
-      has been exhausted: return number of SELECT results.
-
-      :param queryStr: query that was used in a prior call to query()
-      :type queryStr: string
-      :return number of records in SELECT result.
-      :rtype: int
-      '''
-
-      try:
-        return self.cursors[queryStr].rowcount
-      except Exception:
-        raise ValueError("No length associated with given queryStr (%s)" % queryStr)
-
-    def stringifyList(self, iterable):
+            
+    #-------------------------
+    # _stringifyList
+    #--------------
+    
+    def _stringifyList(self, iterable):
         '''
         Goes through the iterable. For each element, tries
         to turn into a string, part of which attempts encoding
@@ -455,7 +587,7 @@ class MySQLDB(object):
         char, that char is UTF-8 encoded.
         
         Acts as an iterator! Use like:
-        for element in stringifyList(someList):
+        for element in _stringifyList(someList):
             print(element)
 
         :param iterable: mixture of items of any type, including Unicode strings.
@@ -466,12 +598,13 @@ class MySQLDB(object):
                 yield(str(element))
             except UnicodeEncodeError:
                 yield element.encode('UTF-8','ignore')
+
     
-@contextmanager
-def no_warn_dup_key():
-  filterwarnings('ignore', message="ERROR 1062", category=db_warning)
-  yield
-  resetwarnings()
+# Ability to write:
+#    with no_warn_no_table():
+#       ... DROP TABLE IF NOT EXISTS ...
+# without annoying Python-level warnings that the
+# table did not exist:
 
 @contextmanager
 def no_warn_no_table():
