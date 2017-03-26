@@ -9,21 +9,24 @@ Modifications:
 
 '''
 
+from contextlib import contextmanager
 import csv
 import os
 import re
+import socket
 import subprocess
 import tempfile
-import socket
+from warnings import filterwarnings, resetwarnings
 
 import MySQLdb
+from MySQLdb import Warning as db_warning
 from _mysql_exceptions import ProgrammingError, OperationalError
 
 
 class DupKeyAction:
-    IGNORE  = 0
-    REPLACE = 1
-    UPDATE  = 2
+    PREVENT = 0
+    IGNORE  = 1
+    REPLACE = 2
 
 class MySQLDB(object):
     '''
@@ -140,7 +143,9 @@ class MySQLDB(object):
         '''
         cursor = self.connection.cursor()
         try:
-            cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
+            # Suppress warning about table not existing:
+            with no_warn_no_table():
+              cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
             self.connection.commit()
         except OperationalError as e:
             raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
@@ -189,11 +194,22 @@ class MySQLDB(object):
         finally:
             cursor.close()
     
-    def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction):
+    def bulkInsert(self, tblName, colNameTuple, valueTupleArray, onDupKey=DupKeyAction.PREVENT):
         '''
-        Inserts large number of rows into given table. Strategy: write
-        the values to a temp file, then generate a LOAD INFILE LOCAL
-        MySQL command. Execute that command via subprocess.call(). 
+        Inserts large number of rows into given table. The
+        rows must be provided as an array of tuples. Caller's
+        choice whether duplicate keys should cause a warning,
+        omitting the incoming row, omit the incoming row without
+        a warning, or replace the existing row.
+        
+        Strategy: 
+        
+        write the values to a temp file, then generate a 
+        LOAD INFILE LOCAL MySQL command and execute it in MySQL. 
+        
+        Returns 
+
+        Note:
         Using a cursor.execute() fails with error 'LOAD DATA LOCAL
         is not supported in this MySQL version...' even though MySQL
         is set up to allow the op (load-infile=1 for both mysql and
@@ -207,14 +223,20 @@ class MySQLDB(object):
         :param valueTupleArray: array of n-tuples, which hold the values. Order of
                 values must correspond to order of column names in colNameTuple.
         :type valueTupleArray: [(<anyMySQLCompatibleTypes>[<anyMySQLCompatibleTypes,...]])
-        :param onDupKey: determines action when incoming row replicates existing row in 
-            a unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
+        :param onDupKey: determines action when incoming row would duplicate an existing row's
+            unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
             skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
-            the existing tuple. By default, an attempt to insert a duplicate key
-            raises a ValueError.
-        :raise ValueError if bad parameter or duplicate key without onDupKey set
-            to DupKeyAction.REPLACE or DupKeyAction.IGNORE.
-
+            the existing tuple. By default, each attempt to insert a duplicate key
+            generates a warning.
+        :raise ValueError if bad parameter.
+        :return None is no warnings occurred, or
+            an array of warnings which reflects MySQL's output of "show warnings;"
+            Example: [
+                       'Level\tCode\tMessage', 
+                       "Warning\t1062\tDuplicate entry '10' for key 'PRIMARY'"
+                     ]
+            The number of warnings is one less than the returned array's length.
+        :rtype {None | [str]}
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv')
         # Allow MySQL to read this tmp file:
@@ -241,30 +263,42 @@ class MySQLDB(object):
             colSpec = '(' + colNameTuple[0]
             for colName in colNameTuple[1:]:
                 colSpec += ',' + colName
-            colSpec += ')'   
+            colSpec += ')'
+
+        # For warnings from MySQL:
+        mysql_warnings = ''
         try:
-            if onDupKey == DupKeyAction.IGNORE:
-                dupAction = '' # MySQL default
+            if onDupKey == DupKeyAction.PREVENT:
+                dupAction = '' # trigger the MySQL default
+            elif onDupKey == DupKeyAction.IGNORE:
+                dupAction = 'IGNORE'
             elif onDupKey == DupKeyAction.REPLACE:
                 dupAction = 'REPLACE'
             else:
                 raise ValueError("Parameter onDupKey to bulkInsert method must be of type DupKeyAction; is %s" % str(onDupKey))
             
             # Remove quotes from the values inside the colNameTuple's:
-            mySQLCmd = ("USE %s; LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
-                        "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s" +\
-                        ";commit;") %  (self.db, tmpCSVFile.name, dupAction, tblName, colSpec)
+            mySQLCmd = ("LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
+                        "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s"
+                        ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
             if len(self.pwd) > 0:
                 status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, 'unittest', '-e', mySQLCmd])
                 if status != 0:
                   self.fail("Could not load test data into unittest.unittest.")
             else:
-                status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, 'unittest', '-e', mySQLCmd])
-                if status != 0:
-                  raise RuntimeError("Could not load test data into unittest.unittest.")
+                try:
+                    mysql_warnings = subprocess.check_output([self.mysql_loc, 
+                                                              '--local_infile=1', 
+                                                              '-u', 
+                                                              self.user, 
+                                                              'unittest', 
+                                                              '-e', mySQLCmd + '; show warnings;'])
+                except subprocess.CalledProcessError as e:
+                    raise RuntimeError("Problem inserting: %e" % e.output())
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
+            return None if len(mysql_warnings) == 0 else mysql_warnings.strip().split('\n')
     
     def update(self, tblName, colName, newVal, fromCondition=None):
         '''
@@ -433,3 +467,14 @@ class MySQLDB(object):
             except UnicodeEncodeError:
                 yield element.encode('UTF-8','ignore')
     
+@contextmanager
+def no_warn_dup_key():
+  filterwarnings('ignore', message="ERROR 1062", category=db_warning)
+  yield
+  resetwarnings()
+
+@contextmanager
+def no_warn_no_table():
+  filterwarnings('ignore', message="Unknown table", category=db_warning)
+  yield
+  resetwarnings()

@@ -17,14 +17,14 @@ Created on Sep 24, 2013
 # Here are the necessary MySQL commands:
 
 #   CREATE USER unittest@localhost;
-#   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE ON unittest.* TO unittest@localhost;
+#   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE, UPDATE ON unittest.* TO unittest@localhost;
 
 
 from collections import OrderedDict
 import unittest
+import subprocess
 
 from pymysql_utils import MySQLDB, DupKeyAction
-from _sqlite3 import OperationalError
 
 #*******TEST_ALL = True
 TEST_ALL = False
@@ -47,6 +47,45 @@ class TestMySQL(unittest.TestCase):
         self.mysqldb.dropTable('unittest')
         self.mysqldb.close()
 
+    #*******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testCreateAndDropTable(self):
+        mySchema = {
+          'col1' : 'INT',
+          'col2' : 'varchar(255)',
+          'col3' : 'FLOAT',
+          'col4' : 'TEXT',
+          'col5' : 'JSON'
+          }
+        self.mysqldb.createTable('myTbl', mySchema, temporary=False)
+        tbl_desc = subprocess.check_output([self.mysqldb.mysql_loc, 
+                                           '-u',
+                                           'unittest',
+                                           'unittest',
+                                           '-e',
+                                           'DESC myTbl;'])
+        expected = 'Field\tType\tNull\tKey\tDefault\tExtra\n' +\
+                   'col4\ttext\tYES\t\tNULL\t\n' +\
+                   'col5\tjson\tYES\t\tNULL\t\n' +\
+                   'col2\tvarchar(255)\tYES\t\tNULL\t\n' +\
+                   'col3\tfloat\tYES\t\tNULL\t\n' +\
+                   'col1\tint(11)\tYES\t\tNULL\t\n'
+        self.assertEqual(tbl_desc, expected)
+        
+        # Query mysql information schema to check for table
+        # present. Use raw cursor to test independently from
+        # the pymysql_utils query() method:
+        
+        self.mysqldb.dropTable('myTbl')
+        cursor = self.mysqldb.connection.cursor()
+        tbl_exists_query = '''
+                  SELECT table_name 
+                    FROM information_schema.tables 
+                   WHERE table_schema = 'unittest' 
+                     AND table_name = 'myTbl';
+                     '''
+        cursor.execute(tbl_exists_query)
+        self.assertEqual(cursor.rowcount, 0)
+        cursor.close()
 
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsert(self):
@@ -103,7 +142,7 @@ class TestMySQL(unittest.TestCase):
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual((130,), result)
         
-    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
       
         # Build test db (this already tests basic bulkinsert):
@@ -118,18 +157,32 @@ class TestMySQL(unittest.TestCase):
         # Add another row:  10,  'newCol1':
         colNames = ['col1','col2']
         colValues = [(10, 'newCol1')]
-        try:
-          self.mysqldb.bulkInsert('unittest', colNames, colValues)
-        except Exception as e:
-          print(`e`)
+        
+        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        # Expect something like: 
+        #    ['Level\tCode\tMessage', 
+        #     "Warning\t1062\tDuplicate entry '10' for key 'PRIMARY'"
+        #    ]
+        self.assertEqual(len(warnings), 2)
             
         # First tuple should still be (10, 'col1'):
         self.assertTupleEqual(('col1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
         # Try update again, but with replacement:
-        self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
+        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
+        self.assertIsNone(warnings)
+        # Now row should have changed:
         self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
+        # Insert a row with duplicate key, specifying IGNORE:
+        colNames = ['col1','col2']
+        colValues = [(10, 'newCol2')]
+        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE)
+        # Still get a warning from MySQL for the ignored
+        # dup key; so expect warnings to be the column
+        # name header plus that one warning:
+        self.assertEqual(len(warnings), 2)
+        self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
 
     def buildSmallDb(self):
         schema = OrderedDict([('col1','INT'),('col2','TEXT')])
@@ -137,8 +190,8 @@ class TestMySQL(unittest.TestCase):
         self.mysqldb.createTable('unittest', schema)
         colNames = ['col1','col2']
         colValues = [(10, 'col1'),(20,'col2'),(30,'col3')]
-        self.mysqldb.bulkInsert('unittest', colNames, colValues)
-
+        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        self.assertIsNone(warnings)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testQuery']
