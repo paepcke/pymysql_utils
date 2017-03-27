@@ -29,8 +29,8 @@ from pymysql_utils import MySQLDB, DupKeyAction
 import pymysql_utils
 
 
-#*******TEST_ALL = True
-TEST_ALL = False
+TEST_ALL = True
+#TEST_ALL = False
 
 class TestPymysqlUtils(unittest.TestCase):
     '''
@@ -57,15 +57,14 @@ class TestPymysqlUtils(unittest.TestCase):
           # like:
           #   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
           # Verify:
-          # The [0] pull the GRANT phrases out of their tuple:
-          if query_it.next()[0] != first_grant:
+          if query_it.next() != first_grant:
               TestPymysqlUtils.err_msg = '''
                   User 'unittest' is missing USAGE grant needed to run the tests.
                   Also need: %s
                   ''' % str(needed_grants)
               TestPymysqlUtils.env_ok = False
               return
-          grants_str = query_it.next()[0]
+          grants_str = query_it.next()
           for needed_grant in needed_grants:
               if grants_str.find(needed_grant) == -1:
                   TestPymysqlUtils.err_msg = '''
@@ -224,13 +223,13 @@ class TestPymysqlUtils(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
             
         # First tuple should still be (10, 'col1'):
-        self.assertTupleEqual(('col1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        self.assertEqual('col1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
         # Try update again, but with replacement:
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
         self.assertIsNone(warnings)
         # Now row should have changed:
-        self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
         # Insert a row with duplicate key, specifying IGNORE:
         colNames = ['col1','col2']
@@ -239,7 +238,7 @@ class TestPymysqlUtils(unittest.TestCase):
         # Even when ignoring dup keys, MySQL issues a warning
         # for each dup key:
         self.assertEqual(len(warnings), 1)
-        self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
     #-------------------------
     # Updates 
@@ -318,7 +317,7 @@ class TestPymysqlUtils(unittest.TestCase):
         self.buildSmallDb()
         self.mysqldb.execute("UPDATE unittest SET col1=120")
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
-            self.assertEqual((120,), result)
+            self.assertEqual(120, result)
         
     #-------------------------
     # Query Parameterized 
@@ -330,7 +329,7 @@ class TestPymysqlUtils(unittest.TestCase):
         myVal = 130
         self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal,))
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
-            self.assertEqual((130,), result)
+            self.assertEqual(130, result)
         
     #-------------------------
     # Reading System Variables 
@@ -339,9 +338,7 @@ class TestPymysqlUtils(unittest.TestCase):
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testReadSysVariable(self):
         this_host = socket.gethostname()
-        # The [0] gets hostname out of its
-        # tuple structure:
-        mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()[0]
+        mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()
         self.assertEqual(mysql_hostname, this_host)
 
     #-------------------------
@@ -352,12 +349,12 @@ class TestPymysqlUtils(unittest.TestCase):
     def testUserVariables(self):
 
         pre_foo = self.mysqldb.query("SELECT @foo").next()
-        self.assertEqual(pre_foo, (None,))
+        self.assertEqual(pre_foo, None)
         
         self.mysqldb.execute("SET @foo = 'new value';")
         
         post_foo = self.mysqldb.query("SELECT @foo").next()
-        self.assertEqual(post_foo, ('new value',))
+        self.assertEqual(post_foo, 'new value')
         
         self.mysqldb.execute("SET @foo = 'NULL';")
 
@@ -388,7 +385,7 @@ class TestPymysqlUtils(unittest.TestCase):
             # Do a test query:
             self.buildSmallDb()
             res = self.mysqldb.query("SELECT col2 FROM unittest WHERE col1 = 10;").next()
-            self.assertEqual(res, ('col1',))
+            self.assertEqual(res, 'col1')
             
             # Bulk insert is also different for pwd vs. none:
             self.testBulkInsert()
@@ -413,7 +410,7 @@ class TestPymysqlUtils(unittest.TestCase):
     # testInterleavedQueries
     #--------------
     
-    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInterleavedQueries(self):
         
         self.buildSmallDb()
@@ -422,18 +419,33 @@ class TestPymysqlUtils(unittest.TestCase):
         res_it1 = self.mysqldb.query(query_str1)
         res_it2 = self.mysqldb.query(query_str2)
         
-        #self.assertEqual(first, second, msg)
+        self.assertEqual(res_it1.result_count(), 3)
+        self.assertEqual(res_it2.result_count(), 2)
+        self.assertEqual(self.mysqldb.result_count(query_str1), 3)
+        self.assertEqual(self.mysqldb.result_count(query_str2), 2)
         
         self.assertEqual(res_it1.next(), 'col1')
         self.assertEqual(res_it2.next(), 'col2')
+        
+        self.assertEqual(res_it1.result_count(), 3)
+        self.assertEqual(res_it2.result_count(), 2)
+        self.assertEqual(self.mysqldb.result_count(query_str1), 3)
+        self.assertEqual(self.mysqldb.result_count(query_str2), 2)
         
         self.assertEqual(res_it1.next(), 'col2')
         self.assertEqual(res_it2.next(), 'col3')
         
         self.assertEqual(res_it1.next(), 'col3')
-        with self.assertRaises(ValueError): 
+        with self.assertRaises(StopIteration): 
             res_it2.next()
-    
+        
+        with self.assertRaises(ValueError): 
+            res_it2.result_count()
+            
+        with self.assertRaises(ValueError): 
+            self.mysqldb.result_count(query_str2)
+            
+        
                           
     # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):

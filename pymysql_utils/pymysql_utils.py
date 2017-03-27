@@ -445,7 +445,7 @@ class MySQLDB(object):
         self.most_recent_query = queryStr
         
         cursor.execute(queryStr)
-        return QueryResult(cursor, self)
+        return QueryResult(cursor, queryStr, self)
         
     #-------------------------
     # result_count 
@@ -637,9 +637,11 @@ class QueryResult(object):
     one result at a time, or all at once.
     '''
   
-    def __init__(self, cursor, cursor_owner_obj):
+    def __init__(self, cursor, query_str, cursor_owner_obj):
         self.mysql_cursor = cursor
         self.cursor_owner = cursor_owner_obj
+        self.the_query_str    = query_str
+        self.exhausted    = False
       
     def __iter__(self):
         return self
@@ -663,6 +665,7 @@ class QueryResult(object):
         res = self.mysql_cursor.fetchone()
         if res is None:
             self.cursor_owner.query_exhausted(self.mysql_cursor)
+            self.exhausted = True
             raise StopIteration()            
         else:
             if len(res) == 1:
@@ -682,8 +685,24 @@ class QueryResult(object):
         all_remaining = self.mysql_cursor.fetchall()
         # We exhausted the query, so clean up:
         self.cursor_owner.query_exhausted(self.mysql_cursor)
+        self.exhausted = True
         return all_remaining
 
+    def query_str(self):
+        '''
+        Provide query that led to this result.
+        '''
+        return self.the_query_str
+
+    def result_count(self):
+        '''
+        Return the number of results in this result object.
+        '''
+        if self.exhausted:
+            raise ValueError("Query '%s' is no longer active." % self.query_str())
+        return self.mysql_cursor.rowcount
+      
+      
 # ----------------------- Context Managers -------------------------    
 
 # Ability to write:
