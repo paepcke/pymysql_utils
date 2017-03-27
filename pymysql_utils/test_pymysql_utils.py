@@ -77,11 +77,14 @@ class TestPymysqlUtils(unittest.TestCase):
           TestPymysqlUtils.err_msg = '''
                For unit testing, localhost MySQL server must have 
                user 'unittest' without password, and a database 
-               called 'unittest'. To create the user in MySQL:
-                    CREATE USER unittest@localhost 
+               called 'unittest'. To create these prerequisites 
+               in MySQL:
+               
+                    CREATE USER unittest@localhost;
+                    CREATE DATABASE unittest; 
                This user needs permissions:
                     %s. 
-               ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
+               ''' % 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants)
           TestPymysqlUtils.env_ok = False
 
     def setUp(self):
