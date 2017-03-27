@@ -61,7 +61,7 @@ class TestPymysqlUtils(unittest.TestCase):
               TestPymysqlUtils.err_msg = '''
                   User 'unittest' is missing USAGE grant needed to run the tests.
                   Also need: %s
-                  ''' % str(needed_grants)
+                  ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
               TestPymysqlUtils.env_ok = False
               return
           grants_str = query_it.next()
@@ -70,17 +70,18 @@ class TestPymysqlUtils(unittest.TestCase):
                   TestPymysqlUtils.err_msg = '''
                     User 'unittest' does not have the '%s' permission needed to run the tests.
                     Need: %s.
-                    ''' % (needed_grant, str(needed_grants))
+                    ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
                   TestPymysqlUtils.env_ok = False
                   return  
       except ValueError as e:
           TestPymysqlUtils.err_msg = '''
                For unit testing, localhost MySQL server must have 
                user 'unittest' without password, and a database 
-               called 'unittest'. This user needs permissions:
-               %s. 
-               (%s)
-               ''' % (needed_grants, `e`)
+               called 'unittest'. To create the user in MySQL:
+                    CREATE USER unittest@localhost 
+               This user needs permissions:
+                    %s. 
+               ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
           TestPymysqlUtils.env_ok = False
 
     def setUp(self):
