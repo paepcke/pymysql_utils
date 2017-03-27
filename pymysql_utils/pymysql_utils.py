@@ -6,7 +6,7 @@ Created on Sep 24, 2013
 
 Modifications:
   - Dec 30, 2013: Added closing of connection to close() method
-
+  - Mar 26, 2017: Major overhaul; fixed bulk insert.
 '''
 
 from contextlib import contextmanager
@@ -45,9 +45,11 @@ class Cursors:
 class MySQLDB(object):
     '''
     Shallow interface to MySQL databases. Some niceties nonetheless.
-    The query() method is an iterator. So::
-        for result in mySqlObj.query('SELECT * FROM foo'):
-            print result
+      - The query() method is an iterator. So::
+            for result in db.query('SELECT * FROM foo'):
+               print result
+      - Table manipulations (create/drop/...)
+      - Insertion/update
     '''
 
     NON_ASCII_CHARS_PATTERN = re.compile(r'[^\x00-\x7F]+')
@@ -105,6 +107,7 @@ class MySQLDB(object):
         # Ability to retrieve number of results in SELECT,
         # Ensure that all cursors are closed (see query()):
         self.cursors = {}
+        self.most_recent_query = None
         
         # Find location of mysql client program:
         try:
@@ -421,14 +424,24 @@ class MySQLDB(object):
         '''
 
         queryStr = queryStr.encode('UTF-8')
+        
         # For if caller never exhausts the results by repeated calls,
         # and to find cursor by query to get (e.g.) num results:
-        self.cursors[queryStr] = cursor = self.connection.cursor()
+        cursor = self.connection.cursor()
+        
+        # Ability to find an active cursor by query 
+        # via result_count(queryString)...
+        self.cursors[queryStr] = cursor
+        
+        #... or find it via  result_count()...
+        self.most_recent_query = queryStr
+        
         cursor.execute(queryStr)
         while True:
             nextRes = cursor.fetchone()
             if nextRes is None:
                 cursor.close()
+                del self.cursors[queryStr]
                 return
             yield nextRes
 
@@ -436,22 +449,32 @@ class MySQLDB(object):
     # result_count 
     #--------------
 
-    def result_count(self, queryStr):
+    def result_count(self, queryStr=None):
       '''
-      Given a query string, after that string was executed 
-      via a call to query(), and before the result iterator
+      Given a query string, after that string served
+      as query in a call to query(), and before the result iterator
       has been exhausted: return number of SELECT results.
+      
+      If queryStr is left to None, the value of 
+      self.most_recent_query is used.
 
       :param queryStr: query that was used in a prior call to query()
-      :type queryStr: string
+      :type queryStr: {None | string}
       :return number of records in SELECT result.
-      :rtype: int
+      :rtype int
+      :raise ValueError if no prior query is still active.
       '''
 
       try:
-        return self.cursors[queryStr].rowcount
-      except Exception:
-        raise ValueError("No length associated with given queryStr (%s)" % queryStr)
+        if queryStr is None:
+          if self.most_recent_query is not None:
+              return self.cursors[self.most_recent_query].rowcount
+          else:
+              raise(ValueError("No previous query available."))
+        else:
+          return self.cursors[queryStr].rowcount
+      except KeyError:
+        raise ValueError("Query '%s' is no longer active." % queryStr)
 
     
     #-------------------------

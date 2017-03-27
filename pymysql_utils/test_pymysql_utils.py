@@ -29,16 +29,64 @@ from pymysql_utils import MySQLDB, DupKeyAction
 import pymysql_utils
 
 
-TEST_ALL = True
-#TEST_ALL = False
+#*******TEST_ALL = True
+TEST_ALL = False
 
-#from mysqldb import MySQLDB
-class TestMySQL(unittest.TestCase):
+class TestPymysqlUtils(unittest.TestCase):
     '''
-
+| GRANT USAGE ON *.* TO 'unittest'@'localhost'                                                        |
+| GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost' |
++-----------------------------------------------------------------------------------------------------+
     '''
+  
+    @classmethod
+    def setUpClass(cls):
+      # Ensure that a user unittest with the proper
+      # permissions exists in the db:
+      TestPymysqlUtils.env_ok = True
+      TestPymysqlUtils.err_msg = ''
+      try:
+          needed_grants = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
+          mysqldb       = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
+          grant_query   = 'SHOW GRANTS FOR unittest@localhost'
+          query_it      = mysqldb.query(grant_query)
+          # First row of the SHOW GRANTS response should be:
+          first_grant   = "GRANT USAGE ON *.* TO 'unittest'@'localhost'"
+          # Second row depends on the order in which the 
+          # grants were provided. The row will look something
+          # like:
+          #   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
+          # Verify:
+          # The [0] pull the GRANT phrases out of their tuple:
+          if query_it.next()[0] != first_grant:
+              TestPymysqlUtils.err_msg = '''
+                  User 'unittest' is missing USAGE grant needed to run the tests.
+                  Also need: %s
+                  ''' % str(needed_grants)
+              TestPymysqlUtils.env_ok = False
+              return
+          grants_str = query_it.next()[0]
+          for needed_grant in needed_grants:
+              if grants_str.find(needed_grant) == -1:
+                  TestPymysqlUtils.err_msg = '''
+                    User 'unittest' does not have the '%s' permission needed to run the tests.
+                    Need: %s.
+                    ''' % (needed_grant, str(needed_grants))
+                  TestPymysqlUtils.env_ok = False
+                  return  
+      except ValueError as e:
+          TestPymysqlUtils.err_msg = '''
+               For unit testing, localhost MySQL server must have 
+               user 'unittest' without password, and a database 
+               called 'unittest'. This user needs permissions:
+               %s. 
+               (%s)
+               ''' % (needed_grants, `e`)
+          TestPymysqlUtils.env_ok = False
 
     def setUp(self):
+        if not TestPymysqlUtils.env_ok:
+            raise RuntimeError(TestPymysqlUtils.err_msg)
         try:
             self.mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
         except ValueError as e:
@@ -348,6 +396,18 @@ class TestMySQL(unittest.TestCase):
             # Make sure the remove the pwd from user unittest,
             # so that other tests will run successfully:
             self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
+            
+    #-------------------------
+    # testResultCount 
+    #--------------
+            
+    #*****@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testResultCount(self):
+      self.buildSmallDb()
+      query_str = 'SELECT * FROM unittest'
+      it = self.mysqldb.query(query_str)
+      self.assertEqual(self.mysqldb.result_count(query_str), 3)
+    
                           
     # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):
