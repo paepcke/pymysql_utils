@@ -7,6 +7,14 @@ Created on Sep 24, 2013
 Modifications:
   - Dec 30, 2013: Added closing of connection to close() method
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
+  
+To document:
+  - Iterator query result
+  - next() gives element, not tuple of element  
+  - result lengths by query string or previous.
+      so: interleaved queries OK.
+  - Safe table management.
+  - Bulk insert with dup-key action
 '''
 
 from contextlib import contextmanager
@@ -437,14 +445,8 @@ class MySQLDB(object):
         self.most_recent_query = queryStr
         
         cursor.execute(queryStr)
-        while True:
-            nextRes = cursor.fetchone()
-            if nextRes is None:
-                cursor.close()
-                del self.cursors[queryStr]
-                return
-            yield nextRes
-
+        return QueryResult(cursor, self)
+        
     #-------------------------
     # result_count 
     #--------------
@@ -540,6 +542,23 @@ class MySQLDB(object):
             cursor.close()  
 
     # ----------------------- Utilities -------------------------                    
+
+
+    #-------------------------
+    # query_exhausted 
+    #--------------
+
+    def query_exhausted(self, cursor):
+
+        # Delete the cursor's entry in the 
+        # cursors { queryStr --> cursor } dict.
+        # Since there will be few entries, the
+        # following dictionary scan isn't a problem:
+    
+        for query_str, the_cursor in self.cursors.items():
+            if the_cursor == cursor:
+                del self.cursors[query_str]
+        cursor.close()
     
     #-------------------------
     # _ensureSQLTyping
@@ -603,7 +622,70 @@ class MySQLDB(object):
             except UnicodeEncodeError:
                 yield element.encode('UTF-8','ignore')
 
-    
+# ----------------------- Class QueryResult -------------------------
+
+class QueryResult(object):
+    '''
+    Iterator for query results. Given an instance
+    of this class I, the following works as expected:
+
+        for res in I:
+            print(res)
+            
+    Instances of this class are returned by MySQLDB's 
+    query() method. Use next() and nextall() to get
+    one result at a time, or all at once.
+    '''
+  
+    def __init__(self, cursor, cursor_owner_obj):
+        self.mysql_cursor = cursor
+        self.cursor_owner = cursor_owner_obj
+      
+    def __iter__(self):
+        return self
+
+    def next(self):
+        '''
+        Return the next result in a query, 
+        or raise StopIteration if no results
+        remain.
+        
+        Note: Returns the zeroeth element
+        of the result. So:
+            ('foo',)  --> 'foo' 
+        and ({'col1' : 10},) ==> {'col1' : 10}
+
+        This convention is in contrast to what
+        cursor.fetconeh() does.
+        
+        '''
+  
+        res = self.mysql_cursor.fetchone()
+        if res is None:
+            self.cursor_owner.query_exhausted(self.mysql_cursor)
+            raise StopIteration()            
+        else:
+            if len(res) == 1:
+                return res[0]
+            else:
+                return res
+          
+    def nextall(self):
+        '''
+        Returns the remaining query results as a 
+        tuple of tuples.
+        
+        :return all remaining tuples inside a wrapper tuple, or empty tuple
+            if no results remain.
+        :rtype ((str))
+        '''
+        all_remaining = self.mysql_cursor.fetchall()
+        # We exhausted the query, so clean up:
+        self.cursor_owner.query_exhausted(self.mysql_cursor)
+        return all_remaining
+
+# ----------------------- Context Managers -------------------------    
+
 # Ability to write:
 #    with no_warn_no_table():
 #       ... DROP TABLE IF NOT EXISTS ...

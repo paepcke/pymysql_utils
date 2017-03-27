@@ -401,12 +401,38 @@ class TestPymysqlUtils(unittest.TestCase):
     # testResultCount 
     #--------------
             
-    #*****@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testResultCount(self):
-      self.buildSmallDb()
-      query_str = 'SELECT * FROM unittest'
-      it = self.mysqldb.query(query_str)
-      self.assertEqual(self.mysqldb.result_count(query_str), 3)
+        self.buildSmallDb()
+        query_str = 'SELECT * FROM unittest'
+        self.mysqldb.query(query_str)
+        self.assertEqual(self.mysqldb.result_count(query_str), 3)
+    
+    
+    #-------------------------
+    # testInterleavedQueries
+    #--------------
+    
+    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testInterleavedQueries(self):
+        
+        self.buildSmallDb()
+        query_str1 = 'SELECT col2 FROM unittest ORDER BY col1'
+        query_str2 = 'SELECT col2 FROM unittest WHERE col1 = 20 or col1 = 30 ORDER BY col1' 
+        res_it1 = self.mysqldb.query(query_str1)
+        res_it2 = self.mysqldb.query(query_str2)
+        
+        #self.assertEqual(first, second, msg)
+        
+        self.assertEqual(res_it1.next(), 'col1')
+        self.assertEqual(res_it2.next(), 'col2')
+        
+        self.assertEqual(res_it1.next(), 'col2')
+        self.assertEqual(res_it2.next(), 'col3')
+        
+        self.assertEqual(res_it1.next(), 'col3')
+        with self.assertRaises(ValueError): 
+            res_it2.next()
     
                           
     # ----------------------- UTILITIES -------------------------
