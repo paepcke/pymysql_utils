@@ -150,6 +150,9 @@ class TestMySQL(unittest.TestCase):
     
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
+        # Called twice: once by the unittest engine,
+        # and again by testWithMySQLPassword() to 
+        # exercise the pwd-bound branch in bulkInsert().
       
         # Build test db (this already tests basic bulkinsert):
         #                  col1   col2
@@ -317,30 +320,32 @@ class TestMySQL(unittest.TestCase):
         self.assertEqual(self.mysqldb.dbName(), 'unittest')
     
             
-    #*******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    #*********@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testWithMySQLPassword(self):
         
-        self.buildSmallDb()
-        local_mysqldb = None
         try:
             # Set a password for the unittest user:
             self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = 'foobar';")
+
+            self.mysqldb.close()
             
             # We should be unable to log in without a pwd:
             with self.assertRaises(ValueError):
-                local_mysqldb = MySQLDB(host='localhost', user='unittest', db='unittest')
+                self.mysqldb = MySQLDB(host='localhost', user='unittest', db='unittest')
                 
             # Open new pymysql_db.MySQLDb instance, supplying pwd: 
-            local_mysqldb = MySQLDB(host='localhost', user='unittest', passwd='foobar', db='unittest')
+            self.mysqldb = MySQLDB(host='localhost', user='unittest', passwd='foobar', db='unittest')
             # Do a test query:
-            res = local_mysqldb.query("SELECT col2 FROM unittest WHERE col1 = 10;").next()
+            self.buildSmallDb()
+            res = self.mysqldb.query("SELECT col2 FROM unittest WHERE col1 = 10;").next()
             self.assertEqual(res, ('col1',))
+            
+            # Bulk insert is also different for pwd vs. none:
+            self.testBulkInsert()
         finally:
             # Make sure the remove the pwd from user unittest,
             # so that other tests will run successfully:
             self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
-            if local_mysqldb is not None:
-              local_mysqldb.close()
                           
     # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):

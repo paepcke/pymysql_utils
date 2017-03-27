@@ -297,9 +297,9 @@ class MySQLDB(object):
 
         Note:
         Using a cursor.execute() fails with error 'LOAD DATA LOCAL
-        is not supported in this MySQL version...' even though MySQL
+        is not supported in this MySQL version...' even if MySQL 5.7
         is set up to allow the op (load-infile=1 for both mysql and
-        mysqld in my.cnf).
+        mysqld in my.cnf). So we use subprocess to call mysql client.
         
         :param tblName: table into which to insert
         :type tblName: string
@@ -367,20 +367,23 @@ class MySQLDB(object):
             mySQLCmd = ("LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
                         "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s"
                         ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
-            if len(self.pwd) > 0:
-                status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, 'unittest', '-e', mySQLCmd])
-                if status != 0:
-                  self.fail("Could not load test data into unittest.unittest.")
-            else:
-                try:
-                    mysql_warnings = subprocess.check_output([self.mysql_loc, 
-                                                              '--local_infile=1', 
-                                                              '-u', 
-                                                              self.user, 
-                                                              'unittest', 
-                                                              '-e', mySQLCmd + '; show warnings;'])
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError("Problem inserting: %e" % e.output())
+#***********                        
+#             if len(self.pwd) > 0:
+#                 status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, 'unittest', '-e', mySQLCmd])
+#                 if status != 0:
+#                   self.fail("Could not load test data into unittest.unittest.")
+#             else:
+            try:
+                mysql_warnings = subprocess.check_output([self.mysql_loc, 
+                                                          '--local_infile=1', 
+                                                          '-u', 
+                                                          self.user,
+                                                          '-p',
+                                                          self.pwd,
+                                                          'unittest', 
+                                                          '-e', mySQLCmd + '; show warnings;'])
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError("Problem inserting: %e" % e.output())
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
