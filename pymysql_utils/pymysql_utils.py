@@ -293,14 +293,9 @@ class MySQLDB(object):
         write the values to a temp file, then generate a 
         LOAD INFILE LOCAL MySQL command and execute it in MySQL. 
         
-        Returns 
-
-        Note:
-        Using a cursor.execute() fails with error 'LOAD DATA LOCAL
-        is not supported in this MySQL version...' even if MySQL 5.7
-        is set up to allow the op (load-infile=1 for both mysql and
-        mysqld in my.cnf). So we use subprocess to call mysql client.
-        
+        Returns None if no errors/warnings, else returns the tuple
+        of tuples with the warnings.
+                
         :param tblName: table into which to insert
         :type tblName: string
         :param colNameTuple: tuple containing column names in proper order, i.e. 
@@ -316,13 +311,9 @@ class MySQLDB(object):
             generates a warning.
         :raise ValueError if bad parameter.
         :return None is no warnings occurred, or
-            an array of warnings which reflects MySQL's output of "show warnings;"
-            Example: [
-                       'Level\tCode\tMessage', 
-                       "Warning\t1062\tDuplicate entry '10' for key 'PRIMARY'"
-                     ]
-            The number of warnings is one less than the returned array's length.
-        :rtype {None | [str]}
+            a tuple of warning tuples which reflects MySQL's output of "show warnings;"
+            Example: ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
+        :rtype {None | ((str))}
         '''
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv')
         # Allow MySQL to read this tmp file:
@@ -367,27 +358,14 @@ class MySQLDB(object):
             mySQLCmd = ("LOAD DATA LOCAL INFILE '%s' %s INTO TABLE %s FIELDS TERMINATED BY ',' " +\
                         "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s"
                         ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
-#***********                        
-#             if len(self.pwd) > 0:
-#                 status = subprocess.call([self.mysql_loc, '--local_infile=1', '-u', self.user, '-p%s'%self.pwd, 'unittest', '-e', mySQLCmd])
-#                 if status != 0:
-#                   self.fail("Could not load test data into unittest.unittest.")
-#             else:
-            try:
-                mysql_warnings = subprocess.check_output([self.mysql_loc, 
-                                                          '--local_infile=1', 
-                                                          '-u', 
-                                                          self.user,
-                                                          '-p',
-                                                          self.pwd,
-                                                          'unittest', 
-                                                          '-e', mySQLCmd + '; show warnings;'])
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError("Problem inserting: %e" % e.output())
+            cursor = self.connection.cursor()
+            with no_warn_dup_key():
+              cursor.execute(mySQLCmd)
+            mysql_warnings = self.connection.show_warnings()
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
-            return None if len(mysql_warnings) == 0 else mysql_warnings.strip().split('\n')
+            return None if len(mysql_warnings) == 0 else mysql_warnings
     
     #-------------------------
     # update 
@@ -612,5 +590,11 @@ class MySQLDB(object):
 @contextmanager
 def no_warn_no_table():
   filterwarnings('ignore', message="Unknown table", category=db_warning)
+  yield
+  resetwarnings()
+
+@contextmanager
+def no_warn_dup_key():
+  filterwarnings('ignore', message="Duplicate entry", category=db_warning)
   yield
   resetwarnings()

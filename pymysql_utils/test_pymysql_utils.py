@@ -1,5 +1,6 @@
 '''
 Created on Sep 24, 2013
+Updated on Mar 26, 2017
 
 @author: paepcke
 '''
@@ -19,7 +20,6 @@ Created on Sep 24, 2013
 #   CREATE USER unittest@localhost;
 #   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE, UPDATE ON unittest.* TO unittest@localhost;
 
-
 from collections import OrderedDict
 import socket
 import subprocess
@@ -29,8 +29,8 @@ from pymysql_utils import MySQLDB, DupKeyAction
 import pymysql_utils
 
 
-#*********TEST_ALL = True
-TEST_ALL = False
+TEST_ALL = True
+#TEST_ALL = False
 
 #from mysqldb import MySQLDB
 class TestMySQL(unittest.TestCase):
@@ -47,6 +47,9 @@ class TestMySQL(unittest.TestCase):
 
     def tearDown(self):
         self.mysqldb.dropTable('unittest')
+        # Make sure the test didn't set a password
+        # for user unittest in the db:
+        self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
         self.mysqldb.close()
 
     # ----------------------- Table Manilupation -------------------------
@@ -168,11 +171,9 @@ class TestMySQL(unittest.TestCase):
         colValues = [(10, 'newCol1')]
         
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
-        # Expect something like: 
-        #    ['Level\tCode\tMessage', 
-        #     "Warning\t1062\tDuplicate entry '10' for key 'PRIMARY'"
-        #    ]
-        self.assertEqual(len(warnings), 2)
+        # Expect something like:
+        #    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),) 
+        self.assertEqual(len(warnings), 1)
             
         # First tuple should still be (10, 'col1'):
         self.assertTupleEqual(('col1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
@@ -187,10 +188,9 @@ class TestMySQL(unittest.TestCase):
         colNames = ['col1','col2']
         colValues = [(10, 'newCol2')]
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE)
-        # Still get a warning from MySQL for the ignored
-        # dup key; so expect warnings to be the column
-        # name header plus that one warning:
-        self.assertEqual(len(warnings), 2)
+        # Even when ignoring dup keys, MySQL issues a warning
+        # for each dup key:
+        self.assertEqual(len(warnings), 1)
         self.assertTupleEqual(('newCol1',), self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
     #-------------------------
@@ -291,7 +291,9 @@ class TestMySQL(unittest.TestCase):
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testReadSysVariable(self):
         this_host = socket.gethostname()
-        mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()
+        # The [0] gets hostname out of its
+        # tuple structure:
+        mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()[0]
         self.assertEqual(mysql_hostname, this_host)
 
     #-------------------------
@@ -320,7 +322,7 @@ class TestMySQL(unittest.TestCase):
         self.assertEqual(self.mysqldb.dbName(), 'unittest')
     
             
-    #*********@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testWithMySQLPassword(self):
         
         try:
