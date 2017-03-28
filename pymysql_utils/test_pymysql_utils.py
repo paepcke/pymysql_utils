@@ -69,8 +69,10 @@ class TestPymysqlUtils(unittest.TestCase):
               if grants_str.find(needed_grant) == -1:
                   TestPymysqlUtils.err_msg = '''
                     User 'unittest' does not have the '%s' permission needed to run the tests.
-                    Need: %s.
-                    ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
+                    Need this in your MySQL 
+                    
+                        %s
+                    ''' % (needed_grant, 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants))
                   TestPymysqlUtils.env_ok = False
                   return  
       except ValueError as e:
@@ -83,7 +85,7 @@ class TestPymysqlUtils(unittest.TestCase):
                     CREATE USER unittest@localhost;
                     CREATE DATABASE unittest; 
                This user needs permissions:
-                    %s. 
+                    %s 
                ''' % 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants)
           TestPymysqlUtils.env_ok = False
 
