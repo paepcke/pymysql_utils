@@ -1,5 +1,5 @@
-pymysql_utils
-=============
+The pymysql_utils module
+========================
 
 The pymysql_utils package makes interaction with MySQL from
 Python more pythonic than its underlying package MySQL-python.
@@ -8,7 +8,8 @@ managing tables, insertion, updates, and querying are also
 available. Query results are iterators with `next()` and
 `nextall()` methods
 
-##Quickstart:
+Quickstart
+----------
 
 ```python
 from pymysql_utils.pymysql_utils import MySQLDB
@@ -38,7 +39,8 @@ for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
 
 
 ```
-##A Bit More Detail
+A Bit More Detail
+-----------------
 
 The database connection is encapsulated in an instance of
 `MySQLDB`. This instance can maintain multiple queries
@@ -99,7 +101,8 @@ results2.result_count()
 # --> raises ValueError: query exhausted.
 
 
-##Installation
+Installation
+------------
 
 ```bash
 # Possibly in a virtual environment:
@@ -107,7 +110,7 @@ results2.result_count()
 pip install pymysql_utils
 nosetests pymysql_utils
 ...............
-----------------------------------------------------------------------
+
 Ran 15 tests in 0.604s
 
 OK
