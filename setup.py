@@ -7,7 +7,7 @@ datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
 
 setup(
     name = "pymysql_utils",
-    version = "0.51",
+    version = "0.52",
     packages = find_packages(),
 
     # Dependencies on other packages:
