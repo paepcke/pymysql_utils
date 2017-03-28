@@ -41,44 +41,44 @@ class TestPymysqlUtils(unittest.TestCase):
   
     @classmethod
     def setUpClass(cls):
-      # Ensure that a user unittest with the proper
-      # permissions exists in the db:
-      TestPymysqlUtils.env_ok = True
-      TestPymysqlUtils.err_msg = ''
-      try:
-          needed_grants = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
-          mysqldb       = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
-          grant_query   = 'SHOW GRANTS FOR unittest@localhost'
-          query_it      = mysqldb.query(grant_query)
-          # First row of the SHOW GRANTS response should be:
-          first_grant   = "GRANT USAGE ON *.* TO 'unittest'@'localhost'"
-          # Second row depends on the order in which the 
-          # grants were provided. The row will look something
-          # like:
-          #   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
-          # Verify:
-          if query_it.next() != first_grant:
-              TestPymysqlUtils.err_msg = '''
-                  User 'unittest' is missing USAGE grant needed to run the tests.
-                  Also need this in your MySQL: 
-                  
-                        %s
-                  ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
-              TestPymysqlUtils.env_ok = False
-              return
-          grants_str = query_it.next()
-          for needed_grant in needed_grants:
-              if grants_str.find(needed_grant) == -1:
-                  TestPymysqlUtils.err_msg = '''
+        # Ensure that a user unittest with the proper
+        # permissions exists in the db:
+        TestPymysqlUtils.env_ok = True
+        TestPymysqlUtils.err_msg = ''
+        try:
+            needed_grants = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
+            mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
+            grant_query = 'SHOW GRANTS FOR unittest@localhost'
+            query_it = mysqldb.query(grant_query)
+            # First row of the SHOW GRANTS response should be:
+            first_grant = "GRANT USAGE ON *.* TO 'unittest'@'localhost'"
+            # Second row depends on the order in which the 
+            # grants were provided. The row will look something
+            # like:
+            #   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
+            # Verify:
+            if query_it.next() != first_grant:
+                TestPymysqlUtils.err_msg = '''
+                    User 'unittest' is missing USAGE grant needed to run the tests.
+                    Also need this in your MySQL: 
+                    
+                          %s
+                    ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
+                TestPymysqlUtils.env_ok = False
+                return
+            grants_str = query_it.next()
+            for needed_grant in needed_grants:
+                if grants_str.find(needed_grant) == -1:
+                    TestPymysqlUtils.err_msg = '''
                     User 'unittest' does not have the '%s' permission needed to run the tests.
                     Need this in your MySQL:
                     
                         %s
                     ''' % (needed_grant, 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants))
-                  TestPymysqlUtils.env_ok = False
-                  return  
-      except ValueError as e:
-          TestPymysqlUtils.err_msg = '''
+                    TestPymysqlUtils.env_ok = False
+                    return  
+        except ValueError:
+            TestPymysqlUtils.err_msg = '''
                For unit testing, localhost MySQL server must have 
                user 'unittest' without password, and a database 
                called 'unittest'. To create these prerequisites 
@@ -89,7 +89,7 @@ class TestPymysqlUtils(unittest.TestCase):
                This user needs permissions:
                     %s 
                ''' % 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants)
-          TestPymysqlUtils.env_ok = False
+            TestPymysqlUtils.env_ok = False
 
     def setUp(self):
         if not TestPymysqlUtils.env_ok:
@@ -123,17 +123,17 @@ class TestPymysqlUtils(unittest.TestCase):
           'col5' : 'JSON'
           }
         self.mysqldb.createTable('myTbl', mySchema, temporary=False)
-        tbl_desc = subprocess.check_output([self.mysqldb.mysql_loc, 
+        tbl_desc = subprocess.check_output([self.mysqldb.mysql_loc,
                                            '-u',
                                            'unittest',
                                            'unittest',
                                            '-e',
                                            'DESC myTbl;'])
-        expected = 'Field\tType\tNull\tKey\tDefault\tExtra\n' +\
-                   'col4\ttext\tYES\t\tNULL\t\n' +\
-                   'col5\tjson\tYES\t\tNULL\t\n' +\
-                   'col2\tvarchar(255)\tYES\t\tNULL\t\n' +\
-                   'col3\tfloat\tYES\t\tNULL\t\n' +\
+        expected = 'Field\tType\tNull\tKey\tDefault\tExtra\n' + \
+                   'col4\ttext\tYES\t\tNULL\t\n' + \
+                   'col5\tjson\tYES\t\tNULL\t\n' + \
+                   'col2\tvarchar(255)\tYES\t\tNULL\t\n' + \
+                   'col3\tfloat\tYES\t\tNULL\t\n' + \
                    'col1\tint(11)\tYES\t\tNULL\t\n'
         self.assertEqual(tbl_desc, expected)
         
@@ -180,12 +180,12 @@ class TestPymysqlUtils(unittest.TestCase):
     
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsert(self):
-        schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
+        schema = OrderedDict([('col1', 'INT'), ('col2', 'TEXT')])
         self.mysqldb.createTable('unittest', schema)
-        colnameValueDict = OrderedDict([('col1',10)])
+        colnameValueDict = OrderedDict([('col1', 10)])
         self.mysqldb.insert('unittest', colnameValueDict)
-        self.assertEqual((10,None), self.mysqldb.query("SELECT * FROM unittest").next())
-        #for value in self.mysqldb.query("SELECT * FROM unittest"):
+        self.assertEqual((10, None), self.mysqldb.query("SELECT * FROM unittest").next())
+        # for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
  
     #-------------------------
@@ -194,19 +194,19 @@ class TestPymysqlUtils(unittest.TestCase):
 
     @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testInsertSeveralColumns(self):
-        schema = OrderedDict([('col1','INT'), ('col2','TEXT')])
+        schema = OrderedDict([('col1', 'INT'), ('col2', 'TEXT')])
         self.mysqldb.createTable('unittest', schema)
-        colnameValueDict = OrderedDict([('col1',10), ('col2','My Poem')])
+        colnameValueDict = OrderedDict([('col1', 10), ('col2', 'My Poem')])
         self.mysqldb.insert('unittest', colnameValueDict)
         res = self.mysqldb.query("SELECT * FROM unittest").next()
-        self.assertEqual((10,'My Poem'), res)
+        self.assertEqual((10, 'My Poem'), res)
     
 
     #-------------------------
     # Bulk Insertion 
     #--------------
     
-    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
         # Called twice: once by the unittest engine,
         # and again by testWithMySQLPassword() to 
@@ -222,7 +222,7 @@ class TestPymysqlUtils(unittest.TestCase):
         
         # Provoke a MySQL error: duplicate primary key (i.e. 10): 
         # Add another row:  10,  'newCol1':
-        colNames = ['col1','col2']
+        colNames = ['col1', 'col2']
         colValues = [(10, 'newCol1')]
         
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
@@ -240,7 +240,7 @@ class TestPymysqlUtils(unittest.TestCase):
         self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
         # Insert a row with duplicate key, specifying IGNORE:
-        colNames = ['col1','col2']
+        colNames = ['col1', 'col2']
         colValues = [(10, 'newCol2')]
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE)
         # Even when ignoring dup keys, MySQL issues a warning
@@ -292,17 +292,17 @@ class TestPymysqlUtils(unittest.TestCase):
 
         for rowNum, result in enumerate(self.mysqldb.query('SELECT col1,col2 FROM unittest')):
             if rowNum == 0:
-                self.assertEqual((10,'col1'), result)
+                self.assertEqual((10, 'col1'), result)
             elif rowNum == 1:
-                self.assertEqual((20,'col2'), result)
+                self.assertEqual((20, 'col2'), result)
             elif rowNum == 2:
-                self.assertEqual((30,'col3'), result)
+                self.assertEqual((30, 'col3'), result)
 
         # Test the dict cursor
         self.mysqldb.close()
-        self.mysqldb = MySQLDB(host='localhost', 
-                               user='unittest', 
-                               db='unittest', 
+        self.mysqldb = MySQLDB(host='localhost',
+                               user='unittest',
+                               db='unittest',
                                cursor_class=pymysql_utils.Cursors.DICT)
         
         for result in self.mysqldb.query('SELECT col1,col2 FROM unittest'):
@@ -467,15 +467,24 @@ class TestPymysqlUtils(unittest.TestCase):
              20       'col2'
              30       'col3'
         '''
-        schema = OrderedDict([('col1','INT'),('col2','TEXT')])
-        self.mysqldb.dropTable('unittest')
-        self.mysqldb.createTable('unittest', schema)
-        colNames = ['col1','col2']
-        colValues = [(10, 'col1'),(20,'col2'),(30,'col3')]
-        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
-        self.assertIsNone(warnings)
+        cur = self.mysqldb.connection.cursor()
+        cur.execute('DROP TABLE IF EXISTS unittest')
+        cur.execute('CREATE TABLE unittest (col1 INT, col2 TEXT)')
+        cur.execute("INSERT INTO unittest VALUES (10, 'col1')")
+        cur.execute("INSERT INTO unittest VALUES (20, 'col2')")
+        cur.execute("INSERT INTO unittest VALUES (30, 'col3')")
+        self.mysqldb.connection.commit()
+        cur.close()
         return 3
+        
+#         self.mysqldb.dropTable('unittest')
+#         self.mysqldb.createTable('unittest', schema)
+#         colNames = ['col1', 'col2']
+#         colValues = [(10, 'col1'), (20, 'col2'), (30, 'col3')]
+#         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
+#         self.assertIsNone(warnings)
+#         return 3
 
 if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testQuery']
+    # import sys;sys.argv = ['', 'Test.testQuery']
     unittest.main()

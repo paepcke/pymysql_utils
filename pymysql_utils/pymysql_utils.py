@@ -103,9 +103,9 @@ class MySQLDB(object):
             return
         
         if cursor_class is not None:
-          # Ensure we caller passed a valid cursor class:
-          if cursor_class not in [DictCursor, SSCursor, SSDictCursor]:
-              raise ValueError("Non-existing cursor class '%s'" % str(cursor_class))
+            # Ensure we caller passed a valid cursor class:
+            if cursor_class not in [DictCursor, SSCursor, SSDictCursor]:
+                raise ValueError("Non-existing cursor class '%s'" % str(cursor_class))
         
         self.user = user
         self.pwd  = passwd
@@ -126,26 +126,26 @@ class MySQLDB(object):
         except subprocess.CalledProcessError as e:
             # Last resort: try /usr/local/bin/mysql:
             if os.path.exists('/usr/local/bin/mysql'):
-              self.mysql_loc = '/usr/local/bin/mysql'
+                self.mysql_loc = '/usr/local/bin/mysql'
             else:
-              raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
+                raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
 
         try:
             if cursor_class is None:
-              self.connection = MySQLdb.connect(host=host,
-                                                port=port, 
-                                                user=user, 
-                                                passwd=passwd, 
-                                                db=db,
-                                                charset='utf8')
+                self.connection = MySQLdb.connect(host=host,
+                                                  port=port, 
+                                                  user=user, 
+                                                  passwd=passwd, 
+                                                  db=db,
+                                                  charset='utf8')
             else:
-              self.connection = MySQLdb.connect(host=host, 
-                                                port=port, 
-                                                user=user, 
-                                                passwd=passwd, 
-                                                db=db,
-                                                charset='utf8',
-                                                cursorclass=cursor_class)
+                self.connection = MySQLdb.connect(host=host, 
+                                                  port=port, 
+                                                  user=user, 
+                                                  passwd=passwd, 
+                                                  db=db,
+                                                  charset='utf8',
+                                                  cursorclass=cursor_class)
         
         except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
@@ -228,7 +228,7 @@ class MySQLDB(object):
         try:
             # Suppress warning about table not existing:
             with no_warn_no_table():
-              cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
+                cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
             self.connection.commit()
         except OperationalError as e:
             raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
@@ -371,7 +371,7 @@ class MySQLDB(object):
                         ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
             cursor = self.connection.cursor()
             with no_warn_dup_key():
-              cursor.execute(mySQLCmd)
+                cursor.execute(mySQLCmd)
             mysql_warnings = self.connection.show_warnings()
         finally:
             tmpCSVFile.close()
@@ -452,31 +452,31 @@ class MySQLDB(object):
     #--------------
 
     def result_count(self, queryStr=None):
-      '''
-      Given a query string, after that string served
-      as query in a call to query(), and before the result iterator
-      has been exhausted: return number of SELECT results.
-      
-      If queryStr is left to None, the value of 
-      self.most_recent_query is used.
-
-      :param queryStr: query that was used in a prior call to query()
-      :type queryStr: {None | string}
-      :return number of records in SELECT result.
-      :rtype int
-      :raise ValueError if no prior query is still active.
-      '''
-
-      try:
-        if queryStr is None:
-          if self.most_recent_query is not None:
-              return self.cursors[self.most_recent_query].rowcount
-          else:
-              raise(ValueError("No previous query available."))
-        else:
-          return self.cursors[queryStr].rowcount
-      except KeyError:
-        raise ValueError("Query '%s' is no longer active." % queryStr)
+        '''
+        Given a query string, after that string served
+        as query in a call to query(), and before the result iterator
+        has been exhausted: return number of SELECT results.
+        
+        If queryStr is left to None, the value of 
+        self.most_recent_query is used.
+        
+        :param queryStr: query that was used in a prior call to query()
+        :type queryStr: {None | string}
+        :return number of records in SELECT result.
+        :rtype int
+        :raise ValueError if no prior query is still active.
+        '''
+        
+        try:
+            if queryStr is None:
+                if self.most_recent_query is not None:
+                    return self.cursors[self.most_recent_query].rowcount
+                else:
+                    raise(ValueError("No previous query available."))
+            else:
+                return self.cursors[queryStr].rowcount
+        except KeyError:
+            raise ValueError("Query '%s' is no longer active." % queryStr)
 
     
     #-------------------------
@@ -713,12 +713,12 @@ class QueryResult(object):
 
 @contextmanager
 def no_warn_no_table():
-  filterwarnings('ignore', message="Unknown table", category=db_warning)
-  yield
-  resetwarnings()
+    filterwarnings('ignore', message="Unknown table", category=db_warning)
+    yield
+    resetwarnings()
 
 @contextmanager
 def no_warn_dup_key():
-  filterwarnings('ignore', message="Duplicate entry", category=db_warning)
-  yield
-  resetwarnings()
+    filterwarnings('ignore', message="Duplicate entry", category=db_warning)
+    yield
+    resetwarnings()
