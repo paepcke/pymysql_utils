@@ -60,7 +60,9 @@ class TestPymysqlUtils(unittest.TestCase):
           if query_it.next() != first_grant:
               TestPymysqlUtils.err_msg = '''
                   User 'unittest' is missing USAGE grant needed to run the tests.
-                  Also need: %s
+                  Also need this in your MySQL: 
+                  
+                        %s
                   ''' % 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants)
               TestPymysqlUtils.env_ok = False
               return
@@ -69,10 +71,10 @@ class TestPymysqlUtils(unittest.TestCase):
               if grants_str.find(needed_grant) == -1:
                   TestPymysqlUtils.err_msg = '''
                     User 'unittest' does not have the '%s' permission needed to run the tests.
-                    Need this in your MySQL 
+                    Need this in your MySQL:
                     
                         %s
-                    ''' % (needed_grant, 'GRANT %s ON unittest.* TO unittest@localhost' % ','.join(needed_grants))
+                    ''' % (needed_grant, 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants))
                   TestPymysqlUtils.env_ok = False
                   return  
       except ValueError as e:
@@ -378,7 +380,7 @@ class TestPymysqlUtils(unittest.TestCase):
         
         try:
             # Set a password for the unittest user:
-            self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = 'foobar';")
+            self.mysqldb.execute("ALTER USER unittest@localhost IDENTIFIED BY 'foobar'")
 
             self.mysqldb.close()
             
@@ -398,7 +400,7 @@ class TestPymysqlUtils(unittest.TestCase):
         finally:
             # Make sure the remove the pwd from user unittest,
             # so that other tests will run successfully:
-            self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
+            self.mysqldb.execute("ALTER USER unittest@localhost IDENTIFIED BY '';")
             
     #-------------------------
     # testResultCount 
