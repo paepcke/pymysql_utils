@@ -38,7 +38,7 @@ for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
 
 
 ```
-## A Bit More Detail
+##A Bit More Detail
 
 The database connection is encapsulated in an instance of
 `MySQLDB`. This instance can maintain multiple queries
@@ -99,7 +99,7 @@ results2.result_count()
 # --> raises ValueError: query exhausted.
 
 
-## Installation
+##Installation
 
 ```bash
 # Possibly in a virtual environment:
