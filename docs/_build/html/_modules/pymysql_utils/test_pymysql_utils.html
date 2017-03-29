@@ -1,0 +1,585 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pymysql_utils.test_pymysql_utils &#8212; pymysql_utils  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pymysql_utils  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pymysql_utils.test_pymysql_utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Created on Sep 24, 2013</span>
+<span class="sd">Updated on Mar 26, 2017</span>
+
+<span class="sd">@author: paepcke</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="c1"># TODO: Test calling query() multiple times with several queries and get results alternately from the iterators</span>
+<span class="c1"># TODO: In: cmd = &#39;INSERT INTO %s (%s) VALUES (%s)&#39; % (str(tblName), &#39;,&#39;.join(colNames), &#39;,&#39;.join(map(str, colValues)))</span>
+<span class="c1">#                 the map removes quotes from strings: &#39;,&#39;join(map(str,(&#39;My poem&#39;, 10)) --&gt; (My Poem, 10) </span>
+
+<span class="c1"># To run these tests, you need a local MySQL server,</span>
+<span class="c1"># an account called &#39;unittest&#39; on that server, and a</span>
+<span class="c1"># database called &#39;unittest&#39;, also on that server.</span>
+<span class="c1">#</span>
+<span class="c1"># User unittest must be able to log in without a password, </span>
+<span class="c1"># the user only needs permissions for the unittest database.</span>
+<span class="c1"># Here are the necessary MySQL commands:</span>
+
+<span class="c1">#   CREATE USER unittest@localhost;</span>
+<span class="c1">#   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE, UPDATE ON unittest.* TO unittest@localhost;</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">unittest</span>
+
+<span class="kn">from</span> <span class="nn">pymysql_utils</span> <span class="k">import</span> <span class="n">MySQLDB</span><span class="p">,</span> <span class="n">DupKeyAction</span>
+<span class="kn">import</span> <span class="nn">pymysql_utils</span>
+
+
+<span class="n">TEST_ALL</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="c1">#TEST_ALL = False</span>
+
+<div class="viewcode-block" id="TestPymysqlUtils"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils">[docs]</a><span class="k">class</span> <span class="nc">TestPymysqlUtils</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">| GRANT USAGE ON *.* TO &#39;unittest&#39;@&#39;localhost&#39;                                                        |</span>
+<span class="sd">| GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO &#39;unittest&#39;@&#39;localhost&#39; |</span>
+<span class="sd">+-----------------------------------------------------------------------------------------------------+</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+  
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="TestPymysqlUtils.setUpClass"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.setUpClass">[docs]</a>    <span class="k">def</span> <span class="nf">setUpClass</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="c1"># Ensure that a user unittest with the proper</span>
+        <span class="c1"># permissions exists in the db:</span>
+        <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">env_ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">err_msg</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">needed_grants</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SELECT&#39;</span><span class="p">,</span> <span class="s1">&#39;INSERT&#39;</span><span class="p">,</span> <span class="s1">&#39;UPDATE&#39;</span><span class="p">,</span> <span class="s1">&#39;DELETE&#39;</span><span class="p">,</span> <span class="s1">&#39;CREATE&#39;</span><span class="p">,</span> <span class="s1">&#39;DROP&#39;</span><span class="p">,</span> <span class="s1">&#39;ALTER&#39;</span><span class="p">]</span>
+            <span class="n">mysqldb</span> <span class="o">=</span> <span class="n">MySQLDB</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">3306</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+            <span class="n">grant_query</span> <span class="o">=</span> <span class="s1">&#39;SHOW GRANTS FOR unittest@localhost&#39;</span>
+            <span class="n">query_it</span> <span class="o">=</span> <span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">grant_query</span><span class="p">)</span>
+            <span class="c1"># First row of the SHOW GRANTS response should be:</span>
+            <span class="n">first_grant</span> <span class="o">=</span> <span class="s2">&quot;GRANT USAGE ON *.* TO &#39;unittest&#39;@&#39;localhost&#39;&quot;</span>
+            <span class="c1"># Second row depends on the order in which the </span>
+            <span class="c1"># grants were provided. The row will look something</span>
+            <span class="c1"># like:</span>
+            <span class="c1">#   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO &#39;unittest&#39;@&#39;localhost&#39;</span>
+            <span class="c1"># Verify:</span>
+            <span class="k">if</span> <span class="n">query_it</span><span class="o">.</span><span class="n">next</span><span class="p">()</span> <span class="o">!=</span> <span class="n">first_grant</span><span class="p">:</span>
+                <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">err_msg</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                    User &#39;unittest&#39; is missing USAGE grant needed to run the tests.</span>
+<span class="s1">                    Also need this in your MySQL: </span>
+<span class="s1">                    </span>
+<span class="s1">                          </span><span class="si">%s</span><span class="s1"></span>
+<span class="s1">                    &#39;&#39;&#39;</span> <span class="o">%</span> <span class="s1">&#39;GRANT </span><span class="si">%s</span><span class="s1"> ON unittest.* TO unittest@localhost&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">needed_grants</span><span class="p">)</span>
+                <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">env_ok</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">return</span>
+            <span class="n">grants_str</span> <span class="o">=</span> <span class="n">query_it</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">needed_grant</span> <span class="ow">in</span> <span class="n">needed_grants</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">grants_str</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">needed_grant</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">err_msg</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                    User &#39;unittest&#39; does not have the &#39;</span><span class="si">%s</span><span class="s1">&#39; permission needed to run the tests.</span>
+<span class="s1">                    Need this in your MySQL:</span>
+<span class="s1">                    </span>
+<span class="s1">                        </span><span class="si">%s</span><span class="s1"></span>
+<span class="s1">                    &#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">needed_grant</span><span class="p">,</span> <span class="s1">&#39;GRANT </span><span class="si">%s</span><span class="s1"> ON unittest.* TO unittest@localhost;&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">needed_grants</span><span class="p">))</span>
+                    <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">env_ok</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">return</span>  
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">err_msg</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">               For unit testing, localhost MySQL server must have </span>
+<span class="s1">               user &#39;unittest&#39; without password, and a database </span>
+<span class="s1">               called &#39;unittest&#39;. To create these prerequisites </span>
+<span class="s1">               in MySQL:</span>
+<span class="s1">               </span>
+<span class="s1">                    CREATE USER unittest@localhost;</span>
+<span class="s1">                    CREATE DATABASE unittest; </span>
+<span class="s1">               This user needs permissions:</span>
+<span class="s1">                    </span><span class="si">%s</span><span class="s1"> </span>
+<span class="s1">               &#39;&#39;&#39;</span> <span class="o">%</span> <span class="s1">&#39;GRANT </span><span class="si">%s</span><span class="s1"> ON unittest.* TO unittest@localhost;&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">needed_grants</span><span class="p">)</span>
+            <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">env_ok</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="TestPymysqlUtils.setUp"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.setUp">[docs]</a>    <span class="k">def</span> <span class="nf">setUp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">env_ok</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">TestPymysqlUtils</span><span class="o">.</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span> <span class="o">=</span> <span class="n">MySQLDB</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">3306</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; (For unit testing, localhost MySQL server must have user &#39;unittest&#39; without password, and a database called &#39;unittest&#39;)&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TestPymysqlUtils.tearDown"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.tearDown">[docs]</a>    <span class="k">def</span> <span class="nf">tearDown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">dropTable</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+        <span class="c1"># Make sure the test didn&#39;t set a password</span>
+        <span class="c1"># for user unittest in the db:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET PASSWORD FOR unittest@localhost = &#39;&#39;;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+    <span class="c1"># ----------------------- Table Manilupation -------------------------</span>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Creating and Dropping Tables </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testCreateAndDropTable"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testCreateAndDropTable">[docs]</a>    <span class="k">def</span> <span class="nf">testCreateAndDropTable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mySchema</span> <span class="o">=</span> <span class="p">{</span>
+          <span class="s1">&#39;col1&#39;</span> <span class="p">:</span> <span class="s1">&#39;INT&#39;</span><span class="p">,</span>
+          <span class="s1">&#39;col2&#39;</span> <span class="p">:</span> <span class="s1">&#39;varchar(255)&#39;</span><span class="p">,</span>
+          <span class="s1">&#39;col3&#39;</span> <span class="p">:</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">,</span>
+          <span class="s1">&#39;col4&#39;</span> <span class="p">:</span> <span class="s1">&#39;TEXT&#39;</span><span class="p">,</span>
+          <span class="s1">&#39;col5&#39;</span> <span class="p">:</span> <span class="s1">&#39;JSON&#39;</span>
+          <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">createTable</span><span class="p">(</span><span class="s1">&#39;myTbl&#39;</span><span class="p">,</span> <span class="n">mySchema</span><span class="p">,</span> <span class="n">temporary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">tbl_desc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">mysql_loc</span><span class="p">,</span>
+                                           <span class="s1">&#39;-u&#39;</span><span class="p">,</span>
+                                           <span class="s1">&#39;unittest&#39;</span><span class="p">,</span>
+                                           <span class="s1">&#39;unittest&#39;</span><span class="p">,</span>
+                                           <span class="s1">&#39;-e&#39;</span><span class="p">,</span>
+                                           <span class="s1">&#39;DESC myTbl;&#39;</span><span class="p">])</span>
+        <span class="n">expected</span> <span class="o">=</span> <span class="s1">&#39;Field</span><span class="se">\t</span><span class="s1">Type</span><span class="se">\t</span><span class="s1">Null</span><span class="se">\t</span><span class="s1">Key</span><span class="se">\t</span><span class="s1">Default</span><span class="se">\t</span><span class="s1">Extra</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+                   <span class="s1">&#39;col4</span><span class="se">\t</span><span class="s1">text</span><span class="se">\t</span><span class="s1">YES</span><span class="se">\t\t</span><span class="s1">NULL</span><span class="se">\t\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+                   <span class="s1">&#39;col5</span><span class="se">\t</span><span class="s1">json</span><span class="se">\t</span><span class="s1">YES</span><span class="se">\t\t</span><span class="s1">NULL</span><span class="se">\t\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+                   <span class="s1">&#39;col2</span><span class="se">\t</span><span class="s1">varchar(255)</span><span class="se">\t</span><span class="s1">YES</span><span class="se">\t\t</span><span class="s1">NULL</span><span class="se">\t\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+                   <span class="s1">&#39;col3</span><span class="se">\t</span><span class="s1">float</span><span class="se">\t</span><span class="s1">YES</span><span class="se">\t\t</span><span class="s1">NULL</span><span class="se">\t\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+                   <span class="s1">&#39;col1</span><span class="se">\t</span><span class="s1">int(11)</span><span class="se">\t</span><span class="s1">YES</span><span class="se">\t\t</span><span class="s1">NULL</span><span class="se">\t\n</span><span class="s1">&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">tbl_desc</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span>
+        
+        <span class="c1"># Query mysql information schema to check for table</span>
+        <span class="c1"># present. Use raw cursor to test independently from</span>
+        <span class="c1"># the pymysql_utils query() method:</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">dropTable</span><span class="p">(</span><span class="s1">&#39;myTbl&#39;</span><span class="p">)</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+        <span class="n">tbl_exists_query</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                  SELECT table_name </span>
+<span class="s1">                    FROM information_schema.tables </span>
+<span class="s1">                   WHERE table_schema = &#39;unittest&#39; </span>
+<span class="s1">                     AND table_name = &#39;myTbl&#39;;</span>
+<span class="s1">                     &#39;&#39;&#39;</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">tbl_exists_query</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">cursor</span><span class="o">.</span><span class="n">rowcount</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Table Truncation </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testTruncate"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testTruncate">[docs]</a>    <span class="k">def</span> <span class="nf">testTruncate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      
+        <span class="c1"># Initial test db with known num of rows:</span>
+        <span class="n">rows_in_test_db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM unittest;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">cursor</span><span class="o">.</span><span class="n">rowcount</span><span class="p">,</span> <span class="n">rows_in_test_db</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">truncateTable</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+        
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM unittest;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">cursor</span><span class="o">.</span><span class="n">rowcount</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+    <span class="c1"># ----------------------- Insertion and Update -------------------------</span>
+    
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Insert One Row </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testInsert"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testInsert">[docs]</a>    <span class="k">def</span> <span class="nf">testInsert</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="s1">&#39;INT&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;col2&#39;</span><span class="p">,</span> <span class="s1">&#39;TEXT&#39;</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">createTable</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
+        <span class="n">colnameValueDict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">colnameValueDict</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM unittest&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">())</span></div>
+        <span class="c1"># for value in self.mysqldb.query(&quot;SELECT * FROM unittest&quot;):</span>
+        <span class="c1">#    print value</span>
+ 
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Insert Several Columns </span>
+    <span class="c1">#--------------</span>
+
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testInsertSeveralColumns"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testInsertSeveralColumns">[docs]</a>    <span class="k">def</span> <span class="nf">testInsertSeveralColumns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="s1">&#39;INT&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;col2&#39;</span><span class="p">,</span> <span class="s1">&#39;TEXT&#39;</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">createTable</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
+        <span class="n">colnameValueDict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;col2&#39;</span><span class="p">,</span> <span class="s1">&#39;My Poem&#39;</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">colnameValueDict</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM unittest&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;My Poem&#39;</span><span class="p">),</span> <span class="n">res</span><span class="p">)</span></div>
+    
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Bulk Insertion </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="c1">#******@unittest.skipIf(not TEST_ALL, &quot;Temporarily disabled&quot;)    </span>
+<div class="viewcode-block" id="TestPymysqlUtils.testBulkInsert"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testBulkInsert">[docs]</a>    <span class="k">def</span> <span class="nf">testBulkInsert</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Called twice: once by the unittest engine,</span>
+        <span class="c1"># and again by testWithMySQLPassword() to </span>
+        <span class="c1"># exercise the pwd-bound branch in bulkInsert().</span>
+      
+        <span class="c1"># Build test db (this already tests basic bulkinsert):</span>
+        <span class="c1">#                  col1   col2</span>
+        <span class="c1">#                   10,  &#39;col1&#39;</span>
+        <span class="c1">#                   20,  &#39;col2&#39;</span>
+        <span class="c1">#                   30,  &#39;col3&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;ALTER TABLE unittest ADD PRIMARY KEY(col1)&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Provoke a MySQL error: duplicate primary key (i.e. 10): </span>
+        <span class="c1"># Add another row:  10,  &#39;newCol1&#39;:</span>
+        <span class="n">colNames</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="s1">&#39;col2&#39;</span><span class="p">]</span>
+        <span class="n">colValues</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;newCol1&#39;</span><span class="p">)]</span>
+        
+        <span class="n">warnings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">bulkInsert</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">colNames</span><span class="p">,</span> <span class="n">colValues</span><span class="p">)</span>
+        <span class="c1"># Expect something like:</span>
+        <span class="c1">#    ((u&#39;Warning&#39;, 1062L, u&quot;Duplicate entry &#39;10&#39; for key &#39;PRIMARY&#39;&quot;),) </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">warnings</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+            
+        <span class="c1"># First tuple should still be (10, &#39;col1&#39;):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 10&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">())</span>
+        
+        <span class="c1"># Try update again, but with replacement:</span>
+        <span class="n">warnings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">bulkInsert</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">colNames</span><span class="p">,</span> <span class="n">colValues</span><span class="p">,</span> <span class="n">onDupKey</span><span class="o">=</span><span class="n">DupKeyAction</span><span class="o">.</span><span class="n">REPLACE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertIsNone</span><span class="p">(</span><span class="n">warnings</span><span class="p">)</span>
+        <span class="c1"># Now row should have changed:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="s1">&#39;newCol1&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 10&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">())</span>
+        
+        <span class="c1"># Insert a row with duplicate key, specifying IGNORE:</span>
+        <span class="n">colNames</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="s1">&#39;col2&#39;</span><span class="p">]</span>
+        <span class="n">colValues</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;newCol2&#39;</span><span class="p">)]</span>
+        <span class="n">warnings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">bulkInsert</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">colNames</span><span class="p">,</span> <span class="n">colValues</span><span class="p">,</span> <span class="n">onDupKey</span><span class="o">=</span><span class="n">DupKeyAction</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)</span>
+        <span class="c1"># Even when ignoring dup keys, MySQL issues a warning</span>
+        <span class="c1"># for each dup key:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">warnings</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="s1">&#39;newCol1&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 10&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">())</span></div>
+        
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Updates </span>
+    <span class="c1">#--------------</span>
+
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testUpdate"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testUpdate">[docs]</a>    <span class="k">def</span> <span class="nf">testUpdate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      
+        <span class="n">num_rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+        
+        <span class="c1"># Initially, col2 of row0 must be &#39;col1&#39;:</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 10&#39;</span><span class="p">)</span>
+        <span class="n">col2_row_zero</span> <span class="o">=</span> <span class="n">cursor</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTupleEqual</span><span class="p">(</span><span class="n">col2_row_zero</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;col1&#39;</span><span class="p">,))</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="n">fromCondition</span><span class="o">=</span><span class="s1">&#39;col1 = 10&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Now no col1 with value 10 should exist:</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 10&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">cursor</span><span class="o">.</span><span class="n">rowcount</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># But a row with col1 == 40 should have col2 == &#39;col1&#39;:</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 40&#39;</span><span class="p">)</span>
+        <span class="n">col2_res</span> <span class="o">=</span> <span class="n">cursor</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTupleEqual</span><span class="p">(</span><span class="n">col2_res</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;col1&#39;</span><span class="p">,))</span>
+        
+        <span class="c1"># Update *all* rows in one column:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="s1">&#39;col1&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;SELECT count(*) FROM unittest WHERE col1 = 0&#39;</span><span class="p">)</span>
+        <span class="n">res_count</span> <span class="o">=</span> <span class="n">cursor</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTupleEqual</span><span class="p">(</span><span class="n">res_count</span><span class="p">,</span> <span class="p">(</span><span class="n">num_rows</span><span class="p">,))</span></div>
+    
+    
+    <span class="c1"># ----------------------- Queries -------------------------         </span>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Query With Result Iteration </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testQueryIterator"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testQueryIterator">[docs]</a>    <span class="k">def</span> <span class="nf">testQueryIterator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">rowNum</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col1,col2 FROM unittest&#39;</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">rowNum</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;col1&#39;</span><span class="p">),</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">rowNum</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">((</span><span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;col2&#39;</span><span class="p">),</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">rowNum</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">((</span><span class="mi">30</span><span class="p">,</span> <span class="s1">&#39;col3&#39;</span><span class="p">),</span> <span class="n">result</span><span class="p">)</span>
+
+        <span class="c1"># Test the dict cursor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span> <span class="o">=</span> <span class="n">MySQLDB</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span>
+                               <span class="n">user</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span>
+                               <span class="n">db</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span>
+                               <span class="n">cursor_class</span><span class="o">=</span><span class="n">pymysql_utils</span><span class="o">.</span><span class="n">Cursors</span><span class="o">.</span><span class="n">DICT</span><span class="p">)</span>
+        
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col1,col2 FROM unittest&#39;</span><span class="p">):</span>
+          
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertIsInstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;col1&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">10</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;col2&#39;</span><span class="p">],</span> <span class="s1">&#39;col1&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;col1&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">20</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;col2&#39;</span><span class="p">],</span> <span class="s1">&#39;col2&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;col1&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">30</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;col2&#39;</span><span class="p">],</span> <span class="s1">&#39;col3&#39;</span><span class="p">)</span></div>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Query Unparameterized </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testExecuteArbitraryQuery"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testExecuteArbitraryQuery">[docs]</a>    <span class="k">def</span> <span class="nf">testExecuteArbitraryQuery</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;UPDATE unittest SET col1=120&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col1 FROM unittest&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span></div>
+        
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Query Parameterized </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testExecuteArbitraryQueryParameterized"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testExecuteArbitraryQueryParameterized">[docs]</a>    <span class="k">def</span> <span class="nf">testExecuteArbitraryQueryParameterized</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="n">myVal</span> <span class="o">=</span> <span class="mi">130</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">executeParameterized</span><span class="p">(</span><span class="s2">&quot;UPDATE unittest SET col1=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">myVal</span><span class="p">,))</span>
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT col1 FROM unittest&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="mi">130</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span></div>
+        
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># Reading System Variables </span>
+    <span class="c1">#--------------</span>
+
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testReadSysVariable"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testReadSysVariable">[docs]</a>    <span class="k">def</span> <span class="nf">testReadSysVariable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">this_host</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">()</span>
+        <span class="n">mysql_hostname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT @@hostname&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">mysql_hostname</span><span class="p">,</span> <span class="n">this_host</span><span class="p">)</span></div>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># User-Level Variables </span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testUserVariables"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testUserVariables">[docs]</a>    <span class="k">def</span> <span class="nf">testUserVariables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">pre_foo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT @foo&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">pre_foo</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET @foo = &#39;new value&#39;;&quot;</span><span class="p">)</span>
+        
+        <span class="n">post_foo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT @foo&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">post_foo</span><span class="p">,</span> <span class="s1">&#39;new value&#39;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET @foo = &#39;NULL&#39;;&quot;</span><span class="p">)</span></div>
+
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># testDbName </span>
+    <span class="c1">#--------------</span>
+
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testDbName"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testDbName">[docs]</a>    <span class="k">def</span> <span class="nf">testDbName</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">dbName</span><span class="p">(),</span> <span class="s1">&#39;unittest&#39;</span><span class="p">)</span></div>
+    
+            
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testWithMySQLPassword"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testWithMySQLPassword">[docs]</a>    <span class="k">def</span> <span class="nf">testWithMySQLPassword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Set a password for the unittest user:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ALTER USER unittest@localhost IDENTIFIED BY &#39;foobar&#39;&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            
+            <span class="c1"># We should be unable to log in without a pwd:</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span> <span class="o">=</span> <span class="n">MySQLDB</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+                
+            <span class="c1"># Open new pymysql_db.MySQLDb instance, supplying pwd: </span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span> <span class="o">=</span> <span class="n">MySQLDB</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">,</span> <span class="n">passwd</span><span class="o">=</span><span class="s1">&#39;foobar&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="s1">&#39;unittest&#39;</span><span class="p">)</span>
+            <span class="c1"># Do a test query:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT col2 FROM unittest WHERE col1 = 10;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="s1">&#39;col1&#39;</span><span class="p">)</span>
+            
+            <span class="c1"># Bulk insert is also different for pwd vs. none:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">testBulkInsert</span><span class="p">()</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="c1"># Make sure the remove the pwd from user unittest,</span>
+            <span class="c1"># so that other tests will run successfully:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ALTER USER unittest@localhost IDENTIFIED BY &#39;&#39;;&quot;</span><span class="p">)</span></div>
+            
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># testResultCount </span>
+    <span class="c1">#--------------</span>
+            
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testResultCount"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testResultCount">[docs]</a>    <span class="k">def</span> <span class="nf">testResultCount</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="n">query_str</span> <span class="o">=</span> <span class="s1">&#39;SELECT * FROM unittest&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">query_str</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span></div>
+    
+    
+    <span class="c1">#-------------------------</span>
+    <span class="c1"># testInterleavedQueries</span>
+    <span class="c1">#--------------</span>
+    
+    <span class="nd">@unittest</span><span class="o">.</span><span class="n">skipIf</span><span class="p">(</span><span class="ow">not</span> <span class="n">TEST_ALL</span><span class="p">,</span> <span class="s2">&quot;Temporarily disabled&quot;</span><span class="p">)</span>    
+<div class="viewcode-block" id="TestPymysqlUtils.testInterleavedQueries"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testInterleavedQueries">[docs]</a>    <span class="k">def</span> <span class="nf">testInterleavedQueries</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">buildSmallDb</span><span class="p">()</span>
+        <span class="n">query_str1</span> <span class="o">=</span> <span class="s1">&#39;SELECT col2 FROM unittest ORDER BY col1&#39;</span>
+        <span class="n">query_str2</span> <span class="o">=</span> <span class="s1">&#39;SELECT col2 FROM unittest WHERE col1 = 20 or col1 = 30 ORDER BY col1&#39;</span> 
+        <span class="n">res_it1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">query_str1</span><span class="p">)</span>
+        <span class="n">res_it2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">query_str2</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it1</span><span class="o">.</span><span class="n">result_count</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it2</span><span class="o">.</span><span class="n">result_count</span><span class="p">(),</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str1</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str2</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it1</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="s1">&#39;col1&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it2</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="s1">&#39;col2&#39;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it1</span><span class="o">.</span><span class="n">result_count</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it2</span><span class="o">.</span><span class="n">result_count</span><span class="p">(),</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str1</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str2</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it1</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="s1">&#39;col2&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it2</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="s1">&#39;col3&#39;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">res_it1</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="s1">&#39;col3&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">StopIteration</span><span class="p">):</span> 
+            <span class="n">res_it2</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span> 
+            <span class="n">res_it2</span><span class="o">.</span><span class="n">result_count</span><span class="p">()</span>
+            
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertRaises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">result_count</span><span class="p">(</span><span class="n">query_str2</span><span class="p">)</span></div>
+            
+        
+                          
+    <span class="c1"># ----------------------- UTILITIES -------------------------</span>
+<div class="viewcode-block" id="TestPymysqlUtils.buildSmallDb"><a class="viewcode-back" href="../../pymysql_utils.html#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.buildSmallDb">[docs]</a>    <span class="k">def</span> <span class="nf">buildSmallDb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Creates a two-col, three-row table in database</span>
+<span class="sd">        unittest. The table is called &#39;unittest&#39;.</span>
+<span class="sd">        Returns number of rows created.</span>
+<span class="sd">        </span>
+<span class="sd">        ====      ======</span>
+<span class="sd">        col1       col2</span>
+<span class="sd">        ====      ======</span>
+<span class="sd">         10       &#39;col1&#39;</span>
+<span class="sd">         20       &#39;col2&#39;</span>
+<span class="sd">         30       &#39;col3&#39;</span>
+<span class="sd">        ====      ======</span>
+<span class="sd">        </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;DROP TABLE IF EXISTS unittest&#39;</span><span class="p">)</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;CREATE TABLE unittest (col1 INT, col2 TEXT)&#39;</span><span class="p">)</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO unittest VALUES (10, &#39;col1&#39;)&quot;</span><span class="p">)</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO unittest VALUES (20, &#39;col2&#39;)&quot;</span><span class="p">)</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO unittest VALUES (30, &#39;col3&#39;)&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mysqldb</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">return</span> <span class="mi">3</span></div></div>
+        
+<span class="c1">#         self.mysqldb.dropTable(&#39;unittest&#39;)</span>
+<span class="c1">#         self.mysqldb.createTable(&#39;unittest&#39;, schema)</span>
+<span class="c1">#         colNames = [&#39;col1&#39;, &#39;col2&#39;]</span>
+<span class="c1">#         colValues = [(10, &#39;col1&#39;), (20, &#39;col2&#39;), (30, &#39;col3&#39;)]</span>
+<span class="c1">#         warnings = self.mysqldb.bulkInsert(&#39;unittest&#39;, colNames, colValues)</span>
+<span class="c1">#         self.assertIsNone(warnings)</span>
+<span class="c1">#         return 3</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="c1"># import sys;sys.argv = [&#39;&#39;, &#39;Test.testQuery&#39;]</span>
+    <span class="n">unittest</span><span class="o">.</span><span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pymysql_utils  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Andreas Paepcke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.5.3.
+    </div>
+  </body>
+</html>

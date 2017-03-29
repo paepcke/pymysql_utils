@@ -3,6 +3,7 @@ Created on Sep 24, 2013
 Updated on Mar 26, 2017
 
 @author: paepcke
+
 '''
 
 # TODO: Test calling query() multiple times with several queries and get results alternately from the iterators
@@ -461,11 +462,15 @@ class TestPymysqlUtils(unittest.TestCase):
         Creates a two-col, three-row table in database
         unittest. The table is called 'unittest'.
         Returns number of rows created.
-            col1       col2
-            ----------------
-             10       'col1'
-             20       'col2'
-             30       'col3'
+        
+        ====      ======
+        col1       col2
+        ====      ======
+         10       'col1'
+         20       'col2'
+         30       'col3'
+        ====      ======
+        
         '''
         cur = self.mysqldb.connection.cursor()
         cur.execute('DROP TABLE IF EXISTS unittest')
