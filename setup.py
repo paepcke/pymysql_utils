@@ -15,9 +15,12 @@ setup(
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
     install_requires = ['MySQL-python>=1.2.5',
-			'configparser>=3.3.0'
+			'configparser>=3.3.0',
 			],
-    tests_require    = ['sentinels>=0.0.6', 'nose>=1.0'],
+    tests_require    = ['sentinels>=0.0.6',
+                        'nose>=1.0',
+                        'shutilwhich>=1.1.0',
+                        ],
 
     # Unit tests; they are initiated via 'python setup.py test'
     test_suite       = 'nose.collector', 

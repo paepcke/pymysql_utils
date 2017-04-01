@@ -59,6 +59,7 @@ Modifications:
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
 
 For usage details, see `Github README &lt;https://github.com/paepcke/pymysql_utils&gt;`_.
+This module is designed for MySQL 5.6 and 5.7. 
  
 &#39;&#39;&#39;
 
@@ -249,7 +250,11 @@ from _mysql_exceptions import ProgrammingError, OperationalError
         colSpec = &#39;&#39;
         for colName, colVal in schema.items():
             colSpec += str(colName) + &#39; &#39; + str(colVal) + &#39;,&#39;
-        cmd = &#39;CREATE TABLE IF NOT EXISTS %s (%s) &#39; % (tableName, colSpec[:-1])
+        cmd = &#39;CREATE %s TABLE IF NOT EXISTS %s (%s) &#39; % (
+            &#39;TEMPORARY&#39; if temporary else &#39;&#39;,
+            tableName, 
+            colSpec[:-1]
+            )
         cursor = self.connection.cursor()
         try:
             cursor.execute(cmd)
@@ -360,15 +365,15 @@ from _mysql_exceptions import ProgrammingError, OperationalError
                values must correspond to order of column names in colNameTuple.
         :type  valueTupleArray: `[(&lt;MySQLVal&gt; [,&lt;MySQLval&gt;,...]])`
         :param onDupKey: determines action when incoming row would duplicate an existing row&#39;s
-        			 unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
-        			 skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
-        			 the existing tuple. By default, each attempt to insert a duplicate key
-        			 generates a warning.
+        	   unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
+        	   skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
+        	   the existing tuple. By default, each attempt to insert a duplicate key
+        	   generates a warning.
         :type  onDupKey: DupKeyAction
         :return: None is no warnings occurred, or
-        				 a tuple of warning tuples which reflects MySQL&#39;s output of &quot;show warnings;&quot;
-        				 Example::
-        				    ((u&#39;Warning&#39;, 1062L, u&quot;Duplicate entry &#39;10&#39; for key &#39;PRIMARY&#39;&quot;),)
+        		a tuple of warning tuples which reflects MySQL&#39;s output of &quot;show warnings;&quot;
+        		Example::
+        		((u&#39;Warning&#39;, 1062L, u&quot;Duplicate entry &#39;10&#39; for key &#39;PRIMARY&#39;&quot;),)
         				    
         				    
         :rtype: {None | ((str))}
@@ -492,8 +497,11 @@ from _mysql_exceptions import ProgrammingError, OperationalError
         
         #... or find it via  result_count()...
         self.most_recent_query = queryStr
-        
-        cursor.execute(queryStr)
+
+        try:        
+            cursor.execute(queryStr)
+        except ProgrammingError as e:
+            raise ValueError(`e`)
         return QueryResult(cursor, queryStr, self)</div>
         
     #-------------------------
@@ -573,7 +581,7 @@ from _mysql_exceptions import ProgrammingError, OperationalError
         results from MySQL, use the query() method.        
 
         Note: params must be a tuple. Example: to update a column:: 
-            mysqldb.executeParameterized(&quot;UPDATE myTable SET col1=%s&quot;, (myVal,))
+        mysqldb.executeParameterized(&quot;UPDATE myTable SET col1=%s&quot;, (myVal,))
         the comma after &#39;myVal&#39; is mandatory; it indicates that the 
         expression is a tuple.
 
@@ -730,7 +738,7 @@ from _mysql_exceptions import ProgrammingError, OperationalError
         tuple of tuples.
         
         :return: all remaining tuples inside a wrapper tuple, or empty tuple
-        if no results remain.
+                 if no results remain.
         :rtype: ((str))
         
         &#39;&#39;&#39;

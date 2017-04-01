@@ -67,7 +67,8 @@
 </ul>
 </dd>
 </dl>
-<p>For usage details, see <a class="reference external" href="https://github.com/paepcke/pymysql_utils">Github README</a>.</p>
+<p>For usage details, see <a class="reference external" href="https://github.com/paepcke/pymysql_utils">Github README</a>.
+This module is designed for MySQL 5.6 and 5.7.</p>
 <dl class="class">
 <dt id="pymysql_utils.pymysql_utils.Cursors">
 <em class="property">class </em><code class="descclassname">pymysql_utils.pymysql_utils.</code><code class="descname">Cursors</code><a class="reference internal" href="_modules/pymysql_utils/pymysql_utils.html#Cursors"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.pymysql_utils.Cursors" title="Permalink to this definition">¶</a></dt>
@@ -173,13 +174,10 @@ generates a warning.</li>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><p>None is no warnings occurred, or
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">None is no warnings occurred, or
 a tuple of warning tuples which reflects MySQL&#8217;s output of &#8220;show warnings;&#8221;
-Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">((</span><span class="sa">u</span><span class="s1">&#39;Warning&#39;</span><span class="p">,</span> <span class="mi">1062</span><span class="n">L</span><span class="p">,</span> <span class="sa">u</span><span class="s2">&quot;Duplicate entry &#39;10&#39; for key &#39;PRIMARY&#39;&quot;</span><span class="p">),)</span>
-</pre></div>
-</div>
-</p>
+Example::
+((u&#8217;Warning&#8217;, 1062L, u&#8221;Duplicate entry &#8216;10&#8217; for key &#8216;PRIMARY&#8217;&#8221;),)</p>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">{None | ((str))}</p>
@@ -284,11 +282,9 @@ as in the Python string format statement. Ex:
 executeParameterized(&#8216;SELECT %s FROM myTable&#8217;, (&#8216;col1&#8217;, &#8216;col3&#8217;))</p>
 <p>Return value is undefined. For SELECT queries or others that return
 results from MySQL, use the query() method.</p>
-<dl class="docutils">
-<dt>Note: params must be a tuple. Example: to update a column:: </dt>
-<dd>mysqldb.executeParameterized(&#8220;UPDATE myTable SET col1=%s&#8221;, (myVal,))</dd>
-</dl>
-<p>the comma after &#8216;myVal&#8217; is mandatory; it indicates that the 
+<p>Note: params must be a tuple. Example: to update a column:: 
+mysqldb.executeParameterized(&#8220;UPDATE myTable SET col1=%s&#8221;, (myVal,))
+the comma after &#8216;myVal&#8217; is mandatory; it indicates that the 
 expression is a tuple.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -458,12 +454,13 @@ tuple of tuples.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">all remaining tuples inside a wrapper tuple, or empty tuple</td>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">all remaining tuples inside a wrapper tuple, or empty tuple
+if no results remain.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">((str))</td>
 </tr>
 </tbody>
 </table>
-<p>if no results remain.
-:rtype: ((str))</p>
 </dd></dl>
 
 <dl class="method">
@@ -500,16 +497,7 @@ Updated on Mar 26, 2017</p>
 <dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils">
 <em class="property">class </em><code class="descclassname">pymysql_utils.test_pymysql_utils.</code><code class="descname">TestPymysqlUtils</code><span class="sig-paren">(</span><em>methodName='runTest'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">unittest.case.TestCase</span></code></p>
-<div class="line-block">
-<div class="line">GRANT USAGE ON <em>.</em> TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216;                                                        |</div>
-<div class="line">GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON <cite>unittest</cite>.* TO <a class="reference external" href="mailto:'unittest'&#37;&#52;&#48;'localhost">'unittest'<span>&#64;</span>'localhost</a>&#8216; |</div>
-</div>
-<table border="1" class="docutils">
-<colgroup>
-</colgroup>
-<tbody valign="top">
-</tbody>
-</table>
+<p>Tests pymysql_utils.</p>
 <dl class="method">
 <dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils.buildSmallDb">
 <code class="descname">buildSmallDb</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils.buildSmallDb"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.buildSmallDb" title="Permalink to this definition">¶</a></dt>
@@ -540,6 +528,14 @@ Returns number of rows created.</p>
 </table>
 </dd></dl>
 
+<dl class="classmethod">
+<dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils.get_mysql_version">
+<em class="property">classmethod </em><code class="descname">get_mysql_version</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils.get_mysql_version"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.get_mysql_version" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a tuple: (major, minor). 
+Example, for MySQL 5.7.15, return (5,7).
+Return (None,None) if version number not found.</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils.setUp">
 <code class="descname">setUp</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils.setUp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.setUp" title="Permalink to this definition">¶</a></dt>
@@ -563,6 +559,11 @@ Returns number of rows created.</p>
 <dl class="method">
 <dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testCreateAndDropTable">
 <code class="descname">testCreateAndDropTable</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils.testCreateAndDropTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testCreateAndDropTable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testCreateTempTable">
+<code class="descname">testCreateTempTable</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pymysql_utils/test_pymysql_utils.html#TestPymysqlUtils.testCreateTempTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pymysql_utils.test_pymysql_utils.TestPymysqlUtils.testCreateTempTable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

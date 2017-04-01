@@ -6,10 +6,6 @@ Updated on Mar 26, 2017
 
 '''
 
-# TODO: Test calling query() multiple times with several queries and get results alternately from the iterators
-# TODO: In: cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), ','.join(map(str, colValues)))
-#                 the map removes quotes from strings: ','join(map(str,('My poem', 10)) --> (My Poem, 10) 
-
 # To run these tests, you need a local MySQL server,
 # an account called 'unittest' on that server, and a
 # database called 'unittest', also on that server.
@@ -17,27 +13,34 @@ Updated on Mar 26, 2017
 # User unittest must be able to log in without a password, 
 # the user only needs permissions for the unittest database.
 # Here are the necessary MySQL commands:
-
+#
+#   CREATE DATABASE unittest;
 #   CREATE USER unittest@localhost;
-#   GRANT SELECT, INSERT, CREATE, DROP, ALTER, DELETE, UPDATE ON unittest.* TO unittest@localhost;
-
-from collections import OrderedDict
-import socket
-import subprocess
-import unittest
-
-from pymysql_utils import MySQLDB, DupKeyAction
-import pymysql_utils
-
+#   GRANT 'SELECT', 'INSERT', 'UPDATE', 
+#         'DELETE', 'CREATE', 'CREATE TEMPORARY TABLES', 
+#         'DROP', 'ALTER' ON unittest.* TO unittest@localhost;
+#
+# The tests are designed to work on MySQL 5.6 and 5.7.
 
 TEST_ALL = True
 #TEST_ALL = False
 
+
+from collections import OrderedDict
+import re
+import socket
+import subprocess
+import unittest
+
+from shutilwhich import which
+
+from pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table
+import pymysql_utils
+
+
 class TestPymysqlUtils(unittest.TestCase):
     '''
-| GRANT USAGE ON *.* TO 'unittest'@'localhost'                                                        |
-| GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost' |
-+-----------------------------------------------------------------------------------------------------+
+    Tests pymysql_utils.    
     '''
   
     @classmethod
@@ -47,7 +50,9 @@ class TestPymysqlUtils(unittest.TestCase):
         TestPymysqlUtils.env_ok = True
         TestPymysqlUtils.err_msg = ''
         try:
-            needed_grants = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
+            needed_grants = ['SELECT', 'INSERT', 'UPDATE', 
+                             'DELETE', 'CREATE', 'CREATE TEMPORARY TABLES', 
+                             'DROP', 'ALTER']
             mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
             grant_query = 'SHOW GRANTS FOR unittest@localhost'
             query_it = mysqldb.query(grant_query)
@@ -56,7 +61,7 @@ class TestPymysqlUtils(unittest.TestCase):
             # Second row depends on the order in which the 
             # grants were provided. The row will look something
             # like:
-            #   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
+            #   GRANT SELECT, INSERT, UPDATE, DELETE, ..., CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
             # Verify:
             if query_it.next() != first_grant:
                 TestPymysqlUtils.err_msg = '''
@@ -92,6 +97,23 @@ class TestPymysqlUtils(unittest.TestCase):
                ''' % 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants)
             TestPymysqlUtils.env_ok = False
 
+        # Check MySQL version:
+        try:
+            (major, minor) = TestPymysqlUtils.get_mysql_version()
+        except Exception as e:
+            raise OSError('Could not get mysql version number: %s' % str(e))
+            
+        if major is None:
+            print('Warning: MySQL version number not found; testing as if V5.7')
+            TestPymysqlUtils.major = 5
+            TestPymysqlUtils.minor = 7
+        else:
+            TestPymysqlUtils.major = major
+            TestPymysqlUtils.minor = minor
+            if major != 5 or (minor != 6 and minor != 7):
+                print('Warning: MySQL version is %s.%s; but testing as if V5.7')
+        
+
     def setUp(self):
         if not TestPymysqlUtils.env_ok:
             raise RuntimeError(TestPymysqlUtils.err_msg)
@@ -99,6 +121,12 @@ class TestPymysqlUtils(unittest.TestCase):
             self.mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
         except ValueError as e:
             self.fail(str(e) + " (For unit testing, localhost MySQL server must have user 'unittest' without password, and a database called 'unittest')")
+            
+        # Make MySQL version more convenient to check:
+        if TestPymysqlUtils.minor >= 7:
+            self.mysql_ge_7 = True
+        else:
+            self.mysql_ge_7 = False
 
 
     def tearDown(self):
@@ -121,7 +149,7 @@ class TestPymysqlUtils(unittest.TestCase):
           'col2' : 'varchar(255)',
           'col3' : 'FLOAT',
           'col4' : 'TEXT',
-          'col5' : 'JSON'
+          #'col5' : 'JSON'  # Only works MySQL 5.7 and up.
           }
         self.mysqldb.createTable('myTbl', mySchema, temporary=False)
         tbl_desc = subprocess.check_output([self.mysqldb.mysql_loc,
@@ -132,7 +160,6 @@ class TestPymysqlUtils(unittest.TestCase):
                                            'DESC myTbl;'])
         expected = 'Field\tType\tNull\tKey\tDefault\tExtra\n' + \
                    'col4\ttext\tYES\t\tNULL\t\n' + \
-                   'col5\tjson\tYES\t\tNULL\t\n' + \
                    'col2\tvarchar(255)\tYES\t\tNULL\t\n' + \
                    'col3\tfloat\tYES\t\tNULL\t\n' + \
                    'col1\tint(11)\tYES\t\tNULL\t\n'
@@ -153,6 +180,55 @@ class TestPymysqlUtils(unittest.TestCase):
         cursor.execute(tbl_exists_query)
         self.assertEqual(cursor.rowcount, 0)
         cursor.close()
+
+    #-------------------------
+    # Creating Temporary Tables 
+    #--------------
+    
+    #***********8@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testCreateTempTable(self):
+        mySchema = {
+          'col1' : 'INT',
+          'col2' : 'varchar(255)',
+          'col3' : 'FLOAT',
+          'col4' : 'TEXT',
+          #'col5' : 'JSON'  # Only works MySQL 5.7 and up.
+          }
+        self.mysqldb.createTable('myTbl', mySchema, temporary=True)
+        
+        # Check that tbl exists.
+        # NOTE: can't use query to mysql.informationschema,
+        # b/c temp tables aren't listed there.
+        
+        try:
+            # Will return some tuple; we don't
+            # care what exaclty, as long as the
+            # cmd doesn't fail:
+            self.mysqldb.query('DESC myTbl').next()
+        except Exception:
+            self.fail('Temporary table not found after creation.')
+        
+        # Start new session, which should remove the table.
+        # Query mysql information schema to check for table
+        # present. Use raw cursor to test independently from
+        # the pymysql_utils query() method:
+        
+        self.mysqldb.close()
+
+        try:
+            self.mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
+        except ValueError as e:
+            self.fail(str(e) + "Could not re-establish MySQL connection.")
+
+        # NOTE: can't use query to mysql.informationschema,
+        # b/c temp tables aren't listed there.
+        
+        try:
+            self.mysqldb.query('DESC myTbl').next()
+            self.fail("Temporary table did not disappear with session exit.")
+        except ValueError:
+            pass
+
 
     #-------------------------
     # Table Truncation 
@@ -207,7 +283,7 @@ class TestPymysqlUtils(unittest.TestCase):
     # Bulk Insertion 
     #--------------
     
-    #******@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testBulkInsert(self):
         # Called twice: once by the unittest engine,
         # and again by testWithMySQLPassword() to 
@@ -227,9 +303,15 @@ class TestPymysqlUtils(unittest.TestCase):
         colValues = [(10, 'newCol1')]
         
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
-        # Expect something like:
-        #    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),) 
-        self.assertEqual(len(warnings), 1)
+        
+        # For MySQL 5.7, expect something like:
+        #    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
+        # MySQL 5.6 just skips: 
+        
+        if self.mysql_ge_7:
+            self.assertEqual(len(warnings), 1)
+        else:
+            self.assertIsNone(warnings)
             
         # First tuple should still be (10, 'col1'):
         self.assertEqual('col1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
@@ -244,9 +326,14 @@ class TestPymysqlUtils(unittest.TestCase):
         colNames = ['col1', 'col2']
         colValues = [(10, 'newCol2')]
         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE)
-        # Even when ignoring dup keys, MySQL issues a warning
+        # Even when ignoring dup keys, MySQL 5.7 issues a warning
         # for each dup key:
-        self.assertEqual(len(warnings), 1)
+        
+        if self.mysql_ge_7:
+            self.assertEqual(len(warnings), 1)
+        else:
+            self.assertIsNone(warnings)
+        
         self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
     #-------------------------
@@ -381,7 +468,10 @@ class TestPymysqlUtils(unittest.TestCase):
         
         try:
             # Set a password for the unittest user:
-            self.mysqldb.execute("ALTER USER unittest@localhost IDENTIFIED BY 'foobar'")
+            if self.mysql_ge_7:
+                self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = 'foobar'")
+            else:
+                self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = PASSWORD('foobar')")
 
             self.mysqldb.close()
             
@@ -401,7 +491,10 @@ class TestPymysqlUtils(unittest.TestCase):
         finally:
             # Make sure the remove the pwd from user unittest,
             # so that other tests will run successfully:
-            self.mysqldb.execute("ALTER USER unittest@localhost IDENTIFIED BY '';")
+            if self.mysql_ge_7:
+                self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = ''")
+            else:
+                self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = PASSWORD('')")
             
     #-------------------------
     # testResultCount 
@@ -473,7 +566,8 @@ class TestPymysqlUtils(unittest.TestCase):
         
         '''
         cur = self.mysqldb.connection.cursor()
-        cur.execute('DROP TABLE IF EXISTS unittest')
+        with no_warn_no_table():
+            cur.execute('DROP TABLE IF EXISTS unittest')
         cur.execute('CREATE TABLE unittest (col1 INT, col2 TEXT)')
         cur.execute("INSERT INTO unittest VALUES (10, 'col1')")
         cur.execute("INSERT INTO unittest VALUES (20, 'col2')")
@@ -481,6 +575,31 @@ class TestPymysqlUtils(unittest.TestCase):
         self.mysqldb.connection.commit()
         cur.close()
         return 3
+    
+    @classmethod  
+    def get_mysql_version(cls):
+        '''
+        Return a tuple: (major, minor). 
+        Example, for MySQL 5.7.15, return (5,7).
+        Return (None,None) if version number not found.
+
+        '''
+        
+        # Where is mysql client program?
+        mysql_path = which('mysql')
+      
+        # Get version string, which looks like this:
+        #   'Distrib 5.7.15, for osx10.11 (x86_64) using  EditLine wrapper\n'
+        version_str = subprocess.check_output([mysql_path, '--version'])
+        
+        # Isolate the major and minor version numbers (e.g. '5', and '7')
+        pat = re.compile(r'Distrib ([0-9]*)[.]([0-9]*)[.]')
+        match_obj = pat.search(version_str)
+        if match_obj is None:
+            return (None,None)
+        (major, minor) = match_obj.groups()
+        return (int(major), int(minor))
+      
         
 #         self.mysqldb.dropTable('unittest')
 #         self.mysqldb.createTable('unittest', schema)

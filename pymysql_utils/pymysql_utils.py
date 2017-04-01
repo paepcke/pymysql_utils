@@ -9,6 +9,7 @@ Modifications:
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
 
 For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`_.
+This module is designed for MySQL 5.6 and 5.7. 
  
 '''
 
@@ -199,7 +200,11 @@ class MySQLDB(object):
         colSpec = ''
         for colName, colVal in schema.items():
             colSpec += str(colName) + ' ' + str(colVal) + ','
-        cmd = 'CREATE TABLE IF NOT EXISTS %s (%s) ' % (tableName, colSpec[:-1])
+        cmd = 'CREATE %s TABLE IF NOT EXISTS %s (%s) ' % (
+            'TEMPORARY' if temporary else '',
+            tableName, 
+            colSpec[:-1]
+            )
         cursor = self.connection.cursor()
         try:
             cursor.execute(cmd)
@@ -310,15 +315,15 @@ class MySQLDB(object):
                values must correspond to order of column names in colNameTuple.
         :type  valueTupleArray: `[(<MySQLVal> [,<MySQLval>,...]])`
         :param onDupKey: determines action when incoming row would duplicate an existing row's
-        			 unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
-        			 skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
-        			 the existing tuple. By default, each attempt to insert a duplicate key
-        			 generates a warning.
+        	   unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
+        	   skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
+        	   the existing tuple. By default, each attempt to insert a duplicate key
+        	   generates a warning.
         :type  onDupKey: DupKeyAction
         :return: None is no warnings occurred, or
-        				 a tuple of warning tuples which reflects MySQL's output of "show warnings;"
-        				 Example::
-        				    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
+        		a tuple of warning tuples which reflects MySQL's output of "show warnings;"
+        		Example::
+        		((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
         				    
         				    
         :rtype: {None | ((str))}
@@ -442,8 +447,11 @@ class MySQLDB(object):
         
         #... or find it via  result_count()...
         self.most_recent_query = queryStr
-        
-        cursor.execute(queryStr)
+
+        try:        
+            cursor.execute(queryStr)
+        except ProgrammingError as e:
+            raise ValueError(`e`)
         return QueryResult(cursor, queryStr, self)
         
     #-------------------------
@@ -523,7 +531,7 @@ class MySQLDB(object):
         results from MySQL, use the query() method.        
 
         Note: params must be a tuple. Example: to update a column:: 
-            mysqldb.executeParameterized("UPDATE myTable SET col1=%s", (myVal,))
+        mysqldb.executeParameterized("UPDATE myTable SET col1=%s", (myVal,))
         the comma after 'myVal' is mandatory; it indicates that the 
         expression is a tuple.
 
@@ -680,7 +688,7 @@ class QueryResult(object):
         tuple of tuples.
         
         :return: all remaining tuples inside a wrapper tuple, or empty tuple
-        if no results remain.
+                 if no results remain.
         :rtype: ((str))
         
         '''
