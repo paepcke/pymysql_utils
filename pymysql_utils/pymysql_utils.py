@@ -7,6 +7,10 @@ Created on Sep 24, 2013
 Modifications:
   - Dec 30, 2013: Added closing of connection to close() method
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
+  - Jun 27, 2017: Changed method that had undefined returns, such
+                  as bulkInsert() to return a 2-tuple: (errors, warnings).
+                  Both are lists, or None. Error-free execution returns
+                  (None, None).
 
 For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`_.
 This module is designed for MySQL 5.6 and 5.7. 
@@ -276,16 +280,28 @@ class MySQLDB(object):
         :type tblName: String
         :param colnameValueDict: mapping of column name to column value
         :type colnameValueDict: Dict<String,Any>
+        :return (None,None) if all ok, else tuple (errorList, warningsList)
         '''
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
         try:
             wellTypedColValues = self._ensureSQLTyping(colValues)
             cmd = 'INSERT INTO %s (%s) VALUES (%s)' % (str(tblName), ','.join(colNames), wellTypedColValues)
-            cursor.execute(cmd)
-            self.connection.commit()
+            with no_db_warnings():
+                try:
+                    cursor.execute(cmd)
+                except Exception:
+                    # The following show_warnings() will
+                    # reveal the error:
+                    pass
+            mysql_warnings = self.connection.show_warnings()
+            if len(mysql_warnings) > 0:
+                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
         finally:
+            self.connection.commit()
             cursor.close()
+            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)            
     
     #-------------------------
     # bulkInsert 
@@ -298,6 +314,9 @@ class MySQLDB(object):
         choice whether duplicate keys should cause a warning,
         omitting the incoming row, omit the incoming row without
         a warning, or replace the existing row.
+        
+        Returns None if all went well, else a list of error
+        tuples.
         
         Strategy: 
         
@@ -320,13 +339,13 @@ class MySQLDB(object):
         	   the existing tuple. By default, each attempt to insert a duplicate key
         	   generates a warning.
         :type  onDupKey: DupKeyAction
-        :return: None is no warnings occurred, or
-        		a tuple of warning tuples which reflects MySQL's output of "show warnings;"
+        :return: None is no warnings occurred, else 
+            a tuple with (errorList, warningsList).
+        		Warning reflects MySQL's output of "show warnings;"
         		Example::
         		((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
         				    
-        				    
-        :rtype: {None | ((str))}
+        :rtype: {None | ((str),(str))}
         :raise: ValueError if bad parameter.
         
         '''
@@ -374,13 +393,27 @@ class MySQLDB(object):
                         "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s"
                         ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
             cursor = self.connection.cursor()
-            with no_warn_dup_key():
-                cursor.execute(mySQLCmd)
+            #with no_warn_dup_key():
+            with no_db_warnings():
+                try:
+                    cursor.execute(mySQLCmd)
+                except Exception:
+                    # The following show_warnings() will
+                    # reveal the error:
+                    pass
             mysql_warnings = self.connection.show_warnings()
+            if len(mysql_warnings) > 0:
+                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+                if len(warnings) == 0:
+                    warnings = None
+                if len(errors) == 0:
+                    errors = None
+                
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
-            return None if len(mysql_warnings) == 0 else mysql_warnings
+            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)            
     
     #-------------------------
     # update 
@@ -401,6 +434,7 @@ class MySQLDB(object):
                       the given value. Syntax must conform to what may be in
                       a MySQL FROM clause (don't include the 'FROM' keyword)
         :type fromCondition: String
+        :return (None,None) if all ok, else tuple (errorList, warningsList)
         '''
         cursor = self.connection.cursor()
         try:
@@ -408,10 +442,22 @@ class MySQLDB(object):
                 cmd = "UPDATE %s SET %s = '%s';" % (tblName,colName,newVal)
             else:
                 cmd = "UPDATE %s SET %s = '%s' WHERE %s;" % (tblName,colName,newVal,fromCondition)
-            cursor.execute(cmd)
-            self.connection.commit()
+            with no_db_warnings():
+                try:
+                    cursor.execute(cmd)
+                except Exception:
+                    # The following show_warnings() will
+                    # reveal the error:
+                    pass
+            mysql_warnings = self.connection.show_warnings()
+            if len(mysql_warnings) > 0:
+                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+
         finally:
+            self.connection.commit()            
             cursor.close()
+            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)            
 
     # ----------------------- Queries -------------------------
         
@@ -505,17 +551,28 @@ class MySQLDB(object):
         
         :param query: query or directive
         :type query: String
-        :return: <undefined>
+        :return: (None,None) if all went well, else a tuple:
+            (listOrErrors, listOfWarnings)
         '''
         
         cursor=self.connection.cursor()                                                                        
-        try:                                                                                                   
-            cursor.execute(query)
+        try:
+            with no_db_warnings():
+                try:                                                                                                   
+                    cursor.execute(query)
+                except Exception:
+                    # The following show_warnings() will
+                    # reveal the error:
+                    pass
+            mysql_warnings = self.connection.show_warnings()
+            if len(mysql_warnings) > 0:
+                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+        finally:                                                                                               
             if doCommit:                                                                              
                 self.connection.commit()                                                                           
-        finally:                                                                                               
             cursor.close()                                                                                     
-                                                                                                               
+            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)
 
     #-------------------------
     # executeParameterized
@@ -539,15 +596,26 @@ class MySQLDB(object):
         :type    query: string
         :param   params: tuple of actuals for the parameters.
         :type    params: (<any>)
-        :return: <undefined>
+        :return: (None,None) if all ok, else tuple: (errorList, warningsList)
                 
         '''
         cursor=self.connection.cursor()                                                                        
         try:                                                                                                   
-            cursor.execute(query,params)                                                                       
-            self.connection.commit()                                                                           
-        finally:                                                                                               
-            cursor.close()  
+            with no_db_warnings():
+                try:
+                    cursor.execute(query,params)
+                except Exception:
+                    # The following show_warnings() will
+                    # reveal the error:
+                    pass
+            mysql_warnings = self.connection.show_warnings()
+            if len(mysql_warnings) > 0:
+                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+        finally:
+            self.connection.commit()                                                                                                                                                                          
+            cursor.close()
+            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)
 
     # ----------------------- Utilities -------------------------                    
 
@@ -730,5 +798,11 @@ def no_warn_no_table():
 @contextmanager
 def no_warn_dup_key():
     filterwarnings('ignore', message="Duplicate entry", category=db_warning)
+    yield
+    resetwarnings()
+
+@contextmanager
+def no_db_warnings():
+    filterwarnings('ignore', category=db_warning)
     yield
     resetwarnings()

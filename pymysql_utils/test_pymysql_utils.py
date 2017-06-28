@@ -185,7 +185,7 @@ class TestPymysqlUtils(unittest.TestCase):
     # Creating Temporary Tables 
     #--------------
     
-    #***********8@unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
     def testCreateTempTable(self):
         mySchema = {
           'col1' : 'INT',
@@ -266,6 +266,21 @@ class TestPymysqlUtils(unittest.TestCase):
         #    print value
  
     #-------------------------
+    # Insert One Row With Error 
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testInsertWithError(self):
+        schema = OrderedDict([('col1', 'INT'), ('col2', 'TEXT')])
+        self.mysqldb.createTable('unittest', schema)
+        colnameValueDict = OrderedDict([('col1', 10)])
+        self.mysqldb.insert('unittest', colnameValueDict)
+        self.assertEqual((10, None), self.mysqldb.query("SELECT * FROM unittest").next())
+        # for value in self.mysqldb.query("SELECT * FROM unittest"):
+        #    print value
+
+    
+    #-------------------------
     # Insert Several Columns 
     #--------------
 
@@ -302,7 +317,7 @@ class TestPymysqlUtils(unittest.TestCase):
         colNames = ['col1', 'col2']
         colValues = [(10, 'newCol1')]
         
-        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
+        (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues) #@UnusedVariable
         
         # For MySQL 5.7, expect something like:
         #    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
@@ -317,7 +332,7 @@ class TestPymysqlUtils(unittest.TestCase):
         self.assertEqual('col1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
         # Try update again, but with replacement:
-        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE)
+        (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.REPLACE) #@UnusedVariable
         self.assertIsNone(warnings)
         # Now row should have changed:
         self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
@@ -325,7 +340,7 @@ class TestPymysqlUtils(unittest.TestCase):
         # Insert a row with duplicate key, specifying IGNORE:
         colNames = ['col1', 'col2']
         colValues = [(10, 'newCol2')]
-        warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE)
+        (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE) #@UnusedVariable
         # Even when ignoring dup keys, MySQL 5.7 issues a warning
         # for each dup key:
         
@@ -335,6 +350,12 @@ class TestPymysqlUtils(unittest.TestCase):
             self.assertIsNone(warnings)
         
         self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
+        
+        # Provoke an error:
+        colNames = ['col1', 'col2', 'col3']
+        colValues = [(10, 'newCol2')]
+        (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE) #@UnusedVariable
+        self.assertEqual(len(errors), 1)
         
     #-------------------------
     # Updates 
@@ -366,7 +387,10 @@ class TestPymysqlUtils(unittest.TestCase):
         cursor.execute('SELECT count(*) FROM unittest WHERE col1 = 0')
         res_count = cursor.fetchone()
         self.assertTupleEqual(res_count, (num_rows,))
-    
+
+        # Provoke an error:
+        (errors,warnings) = self.mysqldb.update('unittest', 'col6', 40, fromCondition='col1 = 10') #@UnusedVariable
+        self.assertEqual(len(errors), 1)
     
     # ----------------------- Queries -------------------------         
 
@@ -426,6 +450,10 @@ class TestPymysqlUtils(unittest.TestCase):
         self.mysqldb.executeParameterized("UPDATE unittest SET col1=%s", (myVal,))
         for result in self.mysqldb.query('SELECT col1 FROM unittest'):
             self.assertEqual(130, result)
+        
+        # Provoke an error:
+        (errors,warnings) = self.mysqldb.executeParameterized("UPDATE unittest SET col10=%s", (myVal,)) #@UnusedVariable
+        self.assertEqual(len(errors), 1)
         
     #-------------------------
     # Reading System Variables 
