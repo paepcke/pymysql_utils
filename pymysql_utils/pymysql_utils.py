@@ -7,10 +7,6 @@ Created on Sep 24, 2013
 Modifications:
   - Dec 30, 2013: Added closing of connection to close() method
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
-  - Jun 27, 2017: Changed method that had undefined returns, such
-                  as bulkInsert() to return a 2-tuple: (errors, warnings).
-                  Both are lists, or None. Error-free execution returns
-                  (None, None).
 
 For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`_.
 This module is designed for MySQL 5.6 and 5.7. 
@@ -280,7 +276,7 @@ class MySQLDB(object):
         :type tblName: String
         :param colnameValueDict: mapping of column name to column value
         :type colnameValueDict: Dict<String,Any>
-        :return (None,None) if all ok, else tuple (errorList, warningsList)
+        :return None if all ok, else tuple (errorList, warningsList)
         '''
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
@@ -345,7 +341,7 @@ class MySQLDB(object):
         		Example::
         		((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
         				    
-        :rtype: {None | ((str),(str))}
+        :rtype: {None | ({ (str) | None},{ (str) | None})}
         :raise: ValueError if bad parameter.
         
         '''
@@ -409,7 +405,6 @@ class MySQLDB(object):
                     warnings = None
                 if len(errors) == 0:
                     errors = None
-                
         finally:
             tmpCSVFile.close()
             self.execute('commit;')
@@ -434,7 +429,7 @@ class MySQLDB(object):
                       the given value. Syntax must conform to what may be in
                       a MySQL FROM clause (don't include the 'FROM' keyword)
         :type fromCondition: String
-        :return (None,None) if all ok, else tuple (errorList, warningsList)
+        :return None if all ok, else tuple (errorList, warningsList)
         '''
         cursor = self.connection.cursor()
         try:
@@ -453,6 +448,10 @@ class MySQLDB(object):
             if len(mysql_warnings) > 0:
                 warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
                 errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+                if len(warnings) == 0:
+                    warnings = None
+                if len(errors) == 0:
+                    errors = None
 
         finally:
             self.connection.commit()            
@@ -551,7 +550,7 @@ class MySQLDB(object):
         
         :param query: query or directive
         :type query: String
-        :return: (None,None) if all went well, else a tuple:
+        :return: None if all went well, else a tuple:
             (listOrErrors, listOfWarnings)
         '''
         
@@ -568,6 +567,10 @@ class MySQLDB(object):
             if len(mysql_warnings) > 0:
                 warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
                 errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+                if len(warnings) == 0:
+                    warnings = None
+                if len(errors) == 0:
+                    errors = None
         finally:                                                                                               
             if doCommit:                                                                              
                 self.connection.commit()                                                                           
@@ -596,7 +599,7 @@ class MySQLDB(object):
         :type    query: string
         :param   params: tuple of actuals for the parameters.
         :type    params: (<any>)
-        :return: (None,None) if all ok, else tuple: (errorList, warningsList)
+        :return: None if all ok, else tuple: (errorList, warningsList)
                 
         '''
         cursor=self.connection.cursor()                                                                        
@@ -612,6 +615,10 @@ class MySQLDB(object):
             if len(mysql_warnings) > 0:
                 warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
                 errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+                if len(warnings) == 0:
+                    warnings = None
+                if len(errors) == 0:
+                    errors = None
         finally:
             self.connection.commit()                                                                                                                                                                          
             cursor.close()
