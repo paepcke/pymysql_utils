@@ -130,11 +130,12 @@ class TestPymysqlUtils(unittest.TestCase):
 
 
     def tearDown(self):
-        self.mysqldb.dropTable('unittest')
-        # Make sure the test didn't set a password
-        # for user unittest in the db:
-        self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
-        self.mysqldb.close()
+        if self.mysqldb.isOpen():
+            self.mysqldb.dropTable('unittest')
+            # Make sure the test didn't set a password
+            # for user unittest in the db:
+            self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = '';")
+            self.mysqldb.close()
 
     # ----------------------- Table Manilupation -------------------------
 
@@ -575,7 +576,53 @@ class TestPymysqlUtils(unittest.TestCase):
         with self.assertRaises(ValueError): 
             self.mysqldb.result_count(query_str2)
             
+    #-------------------------
+    # testBadParameters
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testBadParameters(self):
+        self.mysqldb.close()
+
+        try:        
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host=None, port=3306, user='unittest', db='unittest')
+            self.assertTrue("None value(s) for ['host']; none of host,port,user,passwd or db must be None" in context.exception)
+    
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host='localhost', port=None, user='unittest', db='unittest')
+            self.assertTrue("None value(s) for ['port']; none of host,port,user,passwd or db must be None" in context.exception)
+    
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host='localhost', port=3306, user=None, db='unittest')
+            self.assertTrue("None value(s) for ['user']; none of host,port,user,passwd or db must be None" in context.exception)
+            
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host='localhost', port=3306, user='unittest', db=None)
+            self.assertTrue("None value(s) for ['db']; none of host,port,user,passwd or db must be None" in context.exception)
+            
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host='localhost', port=3306, user='unittest', passwd=None, db='unittest')
+            self.assertTrue("None value(s) for ['passwd']; none of host,port,user,passwd or db must be None" in context.exception)
+            
+            with self.assertRaises(Exception) as context:
+                MySQLDB(host=None, port=3306, user=None, db=None)
+            self.assertTrue("None value(s) for ['host', 'db', 'user']; none of host,port,user,passwd or db must be None" in context.exception)
+        except AssertionError:
+            # Create a better message than 'False is not True':
+            raise AssertionError(context.exception.message)
+
+    #-------------------------
+    # testIsOpen
+    #--------------
+    
+    @unittest.skipIf(not TEST_ALL, "Temporarily disabled")    
+    def testIsOpen(self):
         
+        self.assertTrue(self.mysqldb.isOpen())
+        self.mysqldb.close()
+        self.assertFalse(self.mysqldb.isOpen())
+
                           
     # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):
