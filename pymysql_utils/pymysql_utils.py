@@ -13,6 +13,7 @@ This module is designed for MySQL 5.6 and 5.7.
  
 '''
 
+from collections import OrderedDict
 from contextlib import contextmanager
 import csv
 import os
@@ -22,12 +23,11 @@ import subprocess
 import tempfile
 from warnings import filterwarnings, resetwarnings
 
-import MySQLdb
 from MySQLdb import Warning as db_warning
+import MySQLdb
 from MySQLdb.cursors import DictCursor as DictCursor
 from MySQLdb.cursors import SSCursor as SSCursor
 from MySQLdb.cursors import SSDictCursor as SSDictCursor
-
 from _mysql_exceptions import ProgrammingError, OperationalError
 
 
@@ -41,8 +41,8 @@ class DupKeyAction:
 # Used to pass to query() method if desired:   
 
 class Cursors:
-    BASIC   			  = None
-    DICT     			  = DictCursor
+    BASIC           = None
+    DICT            = DictCursor
     SS_CURSOR       = SSCursor
     SS_DICT_CURSOR  = SSDictCursor
                       
@@ -91,12 +91,28 @@ class MySQLDB(object):
         :type db: string
         :param cursor_class: choice of how rows are returned
         :type cursor_class: Cursors
+        :raise ValueError
+        :raise RuntimeError if mysql client program not found.
     
         '''
         
         # If all arguments are set to None, we are unittesting:
         if all(arg is None for arg in (host,port,user,passwd,db)):
             return
+        
+        # However, cannot have any of the connection parms None.
+        # Get a list of parameter names whose values are None:
+        potential_offenders = OrderedDict({'host' : host,
+                                           'db' : db, 
+                                           'user' : user, 
+                                           'passwd' : passwd, 
+                                           'port' : port}
+                                          )
+        bad_parms = [none_parms for none_parms in potential_offenders.keys() if potential_offenders[none_parms] is None]
+        # If 'host' and 'user' are None, we now have: ['host', 'user']
+        # If none of the above parms is None, non_parms will be empty:
+        if len(bad_parms) > 0:
+            raise ValueError('None value(s) for %s; none of host,port,user,passwd or db must be None' % bad_parms)
         
         if cursor_class is not None:
             # Ensure we caller passed a valid cursor class:
@@ -112,6 +128,7 @@ class MySQLDB(object):
         # Ensure that all cursors are closed (see query()):
         self.cursors = {}
         self.most_recent_query = None
+        self.connection = None
         
         # Find location of mysql client program:
         try:
@@ -147,6 +164,12 @@ class MySQLDB(object):
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
                              (host, port, user, pwd, db, `e`))
+        # Unanticipated errors:
+        except Exception as e:
+            pwd = '...............' if len(passwd) > 0 else '<no password>'
+            raise RuntimeError('Error when connecting to database with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
+                             (host, port, user, pwd, db, `e`))
+      
 
     #-------------------------
     # dbName 
@@ -179,6 +202,20 @@ class MySQLDB(object):
         except:
             pass
 
+    #-------------------------
+    # isOpen
+    #--------------
+
+    def isOpen(self):
+        '''
+        Returns True if the connection to the databases
+        is open. 
+        '''
+        if self.connection is not None:
+            return self.connection.open != 0
+        else:
+            return False
+      
     # ----------------------- Table Management -------------------------
 
     #-------------------------
@@ -276,7 +313,8 @@ class MySQLDB(object):
         :type tblName: String
         :param colnameValueDict: mapping of column name to column value
         :type colnameValueDict: Dict<String,Any>
-        :return None if all ok, else tuple (errorList, warningsList)
+        :return (None,None) if all ok, else tuple (errorList, warningsList)
+        :rtype: {(None,None) | ({ (str) | None},{ (str) | None})}        
         '''
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
@@ -294,6 +332,10 @@ class MySQLDB(object):
             if len(mysql_warnings) > 0:
                 warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
                 errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+                if len(warnings) == 0:
+                    warnings = None
+                if len(errors) == 0:
+                    errors = None                
         finally:
             self.connection.commit()
             cursor.close()
@@ -330,18 +372,18 @@ class MySQLDB(object):
                values must correspond to order of column names in colNameTuple.
         :type  valueTupleArray: `[(<MySQLVal> [,<MySQLval>,...]])`
         :param onDupKey: determines action when incoming row would duplicate an existing row's
-        	   unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
-        	   skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
-        	   the existing tuple. By default, each attempt to insert a duplicate key
-        	   generates a warning.
+               unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
+               skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
+               the existing tuple. By default, each attempt to insert a duplicate key
+               generates a warning.
         :type  onDupKey: DupKeyAction
-        :return: None is no warnings occurred, else 
-            a tuple with (errorList, warningsList).
-        		Warning reflects MySQL's output of "show warnings;"
-        		Example::
-        		((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
-        				    
-        :rtype: {None | ({ (str) | None},{ (str) | None})}
+        :return: (None,None) is no errors or warnings occurred, else 
+                a tuple with (errorList, warningsList).
+                Elements of warningsList reflect MySQL's output of "show warnings;"
+                Example::
+                ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
+                            
+        :rtype: {(None,None) | ({ (str) | None},{ (str) | None})}
         :raise: ValueError if bad parameter.
         
         '''
@@ -389,7 +431,6 @@ class MySQLDB(object):
                         "OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' %s"
                         ) %  (tmpCSVFile.name, dupAction, tblName, colSpec)
             cursor = self.connection.cursor()
-            #with no_warn_dup_key():
             with no_db_warnings():
                 try:
                     cursor.execute(mySQLCmd)
@@ -429,7 +470,7 @@ class MySQLDB(object):
                       the given value. Syntax must conform to what may be in
                       a MySQL FROM clause (don't include the 'FROM' keyword)
         :type fromCondition: String
-        :return None if all ok, else tuple (errorList, warningsList)
+        :return (None,None) if all ok, else tuple (errorList, warningsList)
         '''
         cursor = self.connection.cursor()
         try:
@@ -477,7 +518,8 @@ class MySQLDB(object):
         :param queryStr: the query to submit to MySQL
         :type queryStr: String
         :return: iterator of query results
-        :rtype: iterator of tuple
+        :rtype: iterator of tuples
+        :raise ValueError on MySQL errors.
         '''
 
         queryStr = queryStr.encode('UTF-8')
@@ -550,7 +592,7 @@ class MySQLDB(object):
         
         :param query: query or directive
         :type query: String
-        :return: None if all went well, else a tuple:
+        :return: (None,None) if all went well, else a tuple:
             (listOrErrors, listOfWarnings)
         '''
         
@@ -599,7 +641,7 @@ class MySQLDB(object):
         :type    query: string
         :param   params: tuple of actuals for the parameters.
         :type    params: (<any>)
-        :return: None if all ok, else tuple: (errorList, warningsList)
+        :return: (None,None) if all ok, else tuple: (errorList, warningsList)
                 
         '''
         cursor=self.connection.cursor()                                                                        
@@ -744,6 +786,7 @@ class QueryResult(object):
         This convention is in contrast to what
         cursor.fetconeh() does.
         
+        :raise StopIteration
         '''
   
         res = self.mysql_cursor.fetchone()
@@ -782,6 +825,10 @@ class QueryResult(object):
     def result_count(self):
         '''
         Return the number of results in this result object.
+        
+        :return number of query results
+        :rtype int
+        :raise ValueError if query no longer active.
         '''
         if self.exhausted:
             raise ValueError("Query '%s' is no longer active." % self.query_str())

@@ -275,7 +275,9 @@ class TestPymysqlUtils(unittest.TestCase):
         schema = OrderedDict([('col1', 'INT'), ('col2', 'TEXT')])
         self.mysqldb.createTable('unittest', schema)
         colnameValueDict = OrderedDict([('col1', 10)])
-        self.mysqldb.insert('unittest', colnameValueDict)
+        (errors,warnings) = self.mysqldb.insert('unittest', colnameValueDict)
+        self.assertIsNone(errors)
+        self.assertIsNone(warnings)
         self.assertEqual((10, None), self.mysqldb.query("SELECT * FROM unittest").next())
         # for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
