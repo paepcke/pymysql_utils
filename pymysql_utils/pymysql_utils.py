@@ -119,6 +119,21 @@ class MySQLDB(object):
             if cursor_class not in [DictCursor, SSCursor, SSDictCursor]:
                 raise ValueError("Non-existing cursor class '%s'" % str(cursor_class))
         
+        # Ensure proper data types: all but port must be strings:
+        del potential_offenders['port']
+        
+        type_offenders = [bad_type_parms for bad_type_parms in potential_offenders.keys() 
+                          if type(potential_offenders[bad_type_parms]) != str]
+        
+        # OK for port to be an int:
+        if len(type_offenders) > 0:
+            raise ValueError('Value(s) %s have bad type;host,user,passwd, and db must be strings; port must be int.' 
+                             % type_offenders)
+        
+        if type(port) != int:
+            raise ValueError('Port must be an integer; was %s.' % type(port))
+        
+        
         self.user = user
         self.pwd  = passwd
         self.db   = db

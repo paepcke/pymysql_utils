@@ -586,22 +586,27 @@ class TestPymysqlUtils(unittest.TestCase):
     def testBadParameters(self):
         self.mysqldb.close()
 
+        # Test setting parameters illegally to None: 
         try:        
             with self.assertRaises(Exception) as context:
                 MySQLDB(host=None, port=3306, user='unittest', db='unittest')
-            self.assertTrue("None value(s) for ['host']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['host']; none of host,port,user,passwd or db must be None" 
+                            in context.exception)
     
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=None, user='unittest', db='unittest')
-            self.assertTrue("None value(s) for ['port']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['port']; none of host,port,user,passwd or db must be None" 
+                            in context.exception)
     
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user=None, db='unittest')
-            self.assertTrue("None value(s) for ['user']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['user']; none of host,port,user,passwd or db must be None" 
+                            in context.exception)
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user='unittest', db=None)
-            self.assertTrue("None value(s) for ['db']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['db']; none of host,port,user,passwd or db must be None" 
+                            in context.exception)
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user='unittest', passwd=None, db='unittest')
@@ -609,10 +614,40 @@ class TestPymysqlUtils(unittest.TestCase):
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host=None, port=3306, user=None, db=None)
-            self.assertTrue("None value(s) for ['host', 'db', 'user']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['host', 'db', 'user']; none of host,port,user,passwd or db must be None" 
+                            in context.exception)
         except AssertionError:
-            # Create a better message than 'False is not True':
-            raise AssertionError(context.exception.message)
+            # Create a better message than 'False is not True'.
+            # That useless msg is generated if an expected exception
+            # above is NOT raised:
+            raise AssertionError('Expected ValueError exception "%s" was not raised.' % context.exception.message)
+            
+        # Check data types of parameters:
+        try:
+            # One illegal type: host==10:
+            with self.assertRaises(Exception) as context:
+                # Integer instead of string for host:
+                MySQLDB(host=10, port=3306, user='myUser', db='myDb')
+            self.assertTrue("Value(s) ['host'] have bad type;host,user,passwd, and db must be strings; port must be int."
+                            in context.exception)
+            # Two illegal types: host and user:
+            with self.assertRaises(Exception) as context:
+                # Integer instead of string for host:
+                MySQLDB(host=10, port=3306, user=30, db='myDb')
+            self.assertTrue("Value(s) ['host', 'user'] have bad type;host,user,passwd, and db must be strings; port must be int."
+                            in context.exception)
+            
+            # Port being string instead of required int:
+            with self.assertRaises(Exception) as context:
+                # Integer instead of string for host:
+                MySQLDB(host='myHost', port='3306', user='myUser', db='myDb')
+            self.assertTrue("Port must be an integer; was <type 'str'>." in context.exception)
+            
+        except AssertionError:
+            # Create a better message than 'False is not True'.
+            # That useless msg is generated if an expected exception
+            # above is NOT raised:
+            raise AssertionError('Expected ValueError exception "%s" was not raised.' % context.exception.message)
 
     #-------------------------
     # testIsOpen
@@ -625,7 +660,6 @@ class TestPymysqlUtils(unittest.TestCase):
         self.mysqldb.close()
         self.assertFalse(self.mysqldb.isOpen())
 
-                          
     # ----------------------- UTILITIES -------------------------
     def buildSmallDb(self):
         '''
