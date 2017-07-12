@@ -490,12 +490,32 @@ class MySQLDB(object):
         cursor = self.connection.cursor()
         try:
             if fromCondition is None:
-                cmd = "UPDATE %s SET %s = '%s';" % (tblName,colName,newVal)
+                if newVal is None:
+                    # The double-% causes the '%s' to be retained
+                    # in the update string. The underlying mysqldb
+                    # package will substitute that later for None.
+                    # I.e.: create a two-tuple:
+                    #
+                    #   ('UPDATE unittest SET col1 = %s', (None,))
+                    #
+                    cmd = ("UPDATE %s SET %s = %%s" % (tblName,colName), (None,))
+                else:
+                    cmd = "UPDATE %s SET %s = '%s';" % (tblName,colName,newVal)
             else:
-                cmd = "UPDATE %s SET %s = '%s' WHERE %s;" % (tblName,colName,newVal,fromCondition)
+                if newVal is None:
+                    # See above for explanation of double-%:
+                    cmd = ("UPDATE %s SET %s = %%s WHERE %s;" % (tblName,colName,fromCondition), (None,))
+                else:
+                    cmd = "UPDATE %s SET %s = '%s' WHERE %s;" % (tblName,colName,newVal,fromCondition)
             with no_db_warnings():
                 try:
-                    cursor.execute(cmd)
+                    # If setting to None, cmd will be a tuple
+                    # with the %s-notation UPDATE string first,
+                    # and the values second:
+                    if newVal is None:
+                        cursor.execute(cmd[0], cmd[1])
+                    else:
+                        cursor.execute(cmd)
                 except Exception:
                     # The following show_warnings() will
                     # reveal the error:

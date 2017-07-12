@@ -265,6 +265,19 @@ class TestPymysqlUtils(unittest.TestCase):
         self.assertEqual((10, None), self.mysqldb.query("SELECT * FROM unittest").next())
         # for value in self.mysqldb.query("SELECT * FROM unittest"):
         #    print value
+        
+        # Insert row with an explicit None:
+        colnameValueDict = OrderedDict([('col1', None)])
+        self.mysqldb.insert('unittest', colnameValueDict)
+        
+        cursor = self.mysqldb.connection.cursor()
+        cursor.execute('SELECT col1 FROM unittest')
+        # Swallow the first row: 10, Null:
+        cursor.fetchone()
+        # Get col1 of the row we added (the 2nd row):
+        val = cursor.fetchone()
+        self.assertEqual(val, (None,))
+        cursor.close()
  
     #-------------------------
     # Insert One Row With Error 
@@ -390,10 +403,30 @@ class TestPymysqlUtils(unittest.TestCase):
         cursor.execute('SELECT count(*) FROM unittest WHERE col1 = 0')
         res_count = cursor.fetchone()
         self.assertTupleEqual(res_count, (num_rows,))
+        
+        # Update with a MySQL NULL value by using Python None
+        # for input and output:
+        self.mysqldb.update('unittest', 'col1', None)
+        cursor.execute('SELECT count(*) FROM unittest WHERE col1 is %s', (None,))
+        res_count = cursor.fetchone()
+        self.assertTupleEqual(res_count, (num_rows,))
+        
+        # Update with a MySQL NULL value by using Python None
+        # with WHERE clause: only set col1 to NULL where col2 = 'col2',
+        # i.e. in the 2nd row:
+        
+        num_rows = self.buildSmallDb()
 
+        self.mysqldb.update('unittest', 'col1', None, "col2 = 'col2'")
+        cursor.execute('SELECT count(*) FROM unittest WHERE col1 is %s', (None,))
+        res_count = cursor.fetchone()
+        self.assertTupleEqual(res_count, (1,))
+                        
         # Provoke an error:
         (errors,warnings) = self.mysqldb.update('unittest', 'col6', 40, fromCondition='col1 = 10') #@UnusedVariable
         self.assertEqual(len(errors), 1)
+        
+        cursor.close()
     
     # ----------------------- Queries -------------------------         
 
