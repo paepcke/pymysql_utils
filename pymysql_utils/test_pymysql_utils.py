@@ -367,6 +367,12 @@ class TestPymysqlUtils(unittest.TestCase):
         
         self.assertEqual('newCol1', self.mysqldb.query('SELECT col2 FROM unittest WHERE col1 = 10').next())
         
+        # Insertions that include NULL values:
+        colValues = [(40, None), (50, None)]
+        (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues) #@UnusedVariable
+        self.assertEqual(None, self.mysqldb.query('SELECT col2 FROM UNITTEST WHERE col1 = 40').next())
+        self.assertEqual(None, self.mysqldb.query('SELECT col2 FROM UNITTEST WHERE col1 = 50').next())
+        
         # Provoke an error:
         colNames = ['col1', 'col2', 'col3']
         colValues = [(10, 'newCol2')]

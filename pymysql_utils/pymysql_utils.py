@@ -767,7 +767,9 @@ class MySQLDB(object):
         Goes through the iterable. For each element, tries
         to turn into a string, part of which attempts encoding
         with the 'ascii' codec. Then encountering a unicode
-        char, that char is UTF-8 encoded.
+        char, that char is UTF-8 encoded. The special value
+        None is *not* turned into a string. It will be turned
+        into a NULL instead.
         
         Acts as an iterator! Use like:
         for element in _stringifyList(someList):
@@ -778,7 +780,10 @@ class MySQLDB(object):
         '''
         for element in iterable:
             try:
-                yield(str(element))
+                if element is None:
+                    yield('NULL')
+                else:
+                    yield(str(element))
             except UnicodeEncodeError:
                 yield element.encode('UTF-8','ignore')
 
