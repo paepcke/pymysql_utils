@@ -165,7 +165,8 @@ class MySQLDB(object):
                                                   user=user, 
                                                   passwd=passwd, 
                                                   db=db,
-                                                  charset='utf8')
+                                                  charset='utf8',
+                                                  local_infile=1)
             else:
                 self.connection = MySQLdb.connect(host=host, 
                                                   port=port, 
@@ -173,7 +174,8 @@ class MySQLDB(object):
                                                   passwd=passwd, 
                                                   db=db,
                                                   charset='utf8',
-                                                  cursorclass=cursor_class)
+                                                  cursorclass=cursor_class,
+                                                  local_infile=1)
         
         except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
