@@ -37,8 +37,8 @@ for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
 
 <need output>
 
-
 ```
+
 A Bit More Detail
 -----------------
 
@@ -99,7 +99,7 @@ results2.next()
 
 results2.result_count()
 # --> raises ValueError: query exhausted.
-
+```
 
 Installation
 ------------
