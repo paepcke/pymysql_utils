@@ -333,6 +333,10 @@ class MySQLDB(object):
         :return (None,None) if all ok, else tuple (errorList, warningsList)
         :rtype: {(None,None) | ({ (str) | None},{ (str) | None})}        
         '''
+
+        errors   = []
+        warnings = []
+
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
         try:
@@ -404,6 +408,10 @@ class MySQLDB(object):
         :raise: ValueError if bad parameter.
         
         '''
+
+        errors   = []
+        warnings = []
+
         tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv')
         # Allow MySQL to read this tmp file:
         os.chmod(tmpCSVFile.name, 0644)
@@ -489,6 +497,10 @@ class MySQLDB(object):
         :type fromCondition: String
         :return (None,None) if all ok, else tuple (errorList, warningsList)
         '''
+
+        errors   = []
+        warnings = []
+
         cursor = self.connection.cursor()
         try:
             if fromCondition is None:
@@ -633,28 +645,42 @@ class MySQLDB(object):
             (listOrErrors, listOfWarnings)
         '''
         
+        errors   = []
+        warnings = []
         cursor=self.connection.cursor()                                                                        
         try:
             with no_db_warnings():
                 try:                                                                                                   
                     cursor.execute(query)
+                    # Eat any query results and discard them:
+                    cursor.fetchall()
                 except Exception:
                     # The following show_warnings() will
                     # reveal the error:
                     pass
-            mysql_warnings = self.connection.show_warnings()
-            if len(mysql_warnings) > 0:
-                warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
-                errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
-                if len(warnings) == 0:
-                    warnings = None
-                if len(errors) == 0:
-                    errors = None
         finally:                                                                                               
-            if doCommit:                                                                              
-                self.connection.commit()                                                                           
-            cursor.close()                                                                                     
-            return (None,None) if len(mysql_warnings) == 0 else (errors, warnings)
+            if doCommit:
+                self.connection.commit()
+            try:
+                # If the above MySQL call had an error,
+                # it will generate an exception when 
+                # close the cursor. But that error info
+                # will be caught in the show_warnings()
+                # below; so ignore it here:
+                cursor.close()
+            except Exception as e:
+                pass
+
+        mysql_warnings = self.connection.show_warnings()
+
+        if len(mysql_warnings) > 0:
+            warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
+            errors     = [error_tuple for error_tuple in mysql_warnings if error_tuple[0] == 'Error']
+            if len(warnings) == 0:
+                warnings = None
+            if len(errors) == 0:
+                errors = None
+        return(None,None) if len(mysql_warnings) == 0 else (errors, warnings)
 
     #-------------------------
     # executeParameterized
@@ -681,6 +707,9 @@ class MySQLDB(object):
         :return: (None,None) if all ok, else tuple: (errorList, warningsList)
                 
         '''
+
+        errors   = []
+        warnings = []
         cursor=self.connection.cursor()                                                                        
         try:                                                                                                   
             with no_db_warnings():

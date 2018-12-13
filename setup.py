@@ -7,7 +7,7 @@ datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
 
 setup(
     name = "pymysql_utils",
-    version = "1.9",
+    version = "1.11",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -15,8 +15,8 @@ setup(
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
     install_requires = ['MySQL-python>=1.2.5',
-			'configparser>=3.3.0',
-			],
+                        'configparser>=3.3.0',
+                        ],
     tests_require    = ['sentinels>=0.0.6',
                         'nose>=1.0',
                         'shutilwhich>=1.1.0',
