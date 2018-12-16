@@ -7,14 +7,15 @@ datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
 
 setup(
     name = "pymysql_utils",
-    version = "1.11",
+    version = "2.0",
     packages = find_packages(),
 
     # Dependencies on other packages:
     # Couldn't get numpy install to work without
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
-    install_requires = ['MySQL-python>=1.2.5',
+    install_requires = [# 'MySQL-python>=1.2.5',   # Does not support python 3
+                        'mysqlclient>=1.3.14',
                         'configparser>=3.3.0',
                         ],
     tests_require    = ['sentinels>=0.0.6',

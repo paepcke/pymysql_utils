@@ -23,8 +23,6 @@ import subprocess
 import tempfile
 from warnings import filterwarnings, resetwarnings
 
-from MySQLdb import Warning as db_warning
-import MySQLdb
 from MySQLdb.cursors import DictCursor as DictCursor
 from MySQLdb.cursors import SSCursor as SSCursor
 from MySQLdb.cursors import SSDictCursor as SSDictCursor
