@@ -22,8 +22,6 @@ import subprocess
 import tempfile
 from warnings import filterwarnings, resetwarnings
 
-from builtins import str
-
 
 import MySQLdb
 from MySQLdb import Warning as db_warning
@@ -1013,7 +1011,7 @@ class QueryResult(object):
 #    with no_warn_no_table():
 #       ... DROP TABLE IF NOT EXISTS ...
 # without annoying Python-level warnings that the
-# table did not exist:¯
+# table did not exist:
 
 @contextmanager
 def no_warn_no_table():

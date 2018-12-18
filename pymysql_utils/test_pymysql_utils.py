@@ -32,7 +32,7 @@ import socket
 import subprocess
 import unittest
 
-from pymysql_utils.pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors
+from .pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors
 
 
 class TestPymysqlUtils(unittest.TestCase):
@@ -158,20 +158,21 @@ class TestPymysqlUtils(unittest.TestCase):
           #'col5' : 'JSON'  # Only works MySQL 5.7 and up.
           }
         self.mysqldb.createTable('myTbl', mySchema, temporary=False)
-        tbl_desc = subprocess.check_output([self.mysqldb.mysql_loc,
-                                           '-u',
-                                           'unittest',
-                                           'unittest',
-                                           '--silent',
-                                           '--skip-column-names',
-                                           '-e',
-                                           'DESC myTbl;'])
-        expected = 'col1\tint(11)\tYES\t\tNULL\t\n' +\
-                    'col2\tvarchar(255)\tYES\t\tNULL\t\n' +\
-                    'col3\tfloat\tYES\t\tNULL\t\n' +\
-                    'col4\ttext\tYES\t\tNULL\t\n'
+        # Get (('col4', 'text'), ('col2', 'varchar(255)'), ('col3', 'float'), ('col1', 'int(11)'))
+        # in some order:
+        cols = self.mysqldb.query('''SELECT COLUMN_NAME,COLUMN_TYPE 
+                                      FROM information_schema.columns 
+                                    WHERE TABLE_SCHEMA = 'unittest' 
+                                      AND TABLE_NAME = 'myTbl';
+                                      '''
+                                ) 
 
-        self.assertEqual(self.convert_to_string(tbl_desc), expected)
+        self.assertEqual(sorted(cols), 
+                         [('col1', 'int(11)'), 
+                          ('col2', 'varchar(255)'), 
+                          ('col3', 'float'), 
+                          ('col4', 'text')]
+                         )   
         
         # Query mysql information schema to check for table
         # present. Use raw cursor to test independently from
