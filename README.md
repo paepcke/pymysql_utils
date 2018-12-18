@@ -15,9 +15,9 @@ Tested on:
 
 
 |  OS                 | MySQL        | Python |
-| ------------------- |:------------: ------: |
+| ------------------- | ------------ | ------ |
 | macos               |  mysql 8.0   |   3.7  |
-| macos               |  mysql 8.0   |   2.7  | 
+| macos               |  mysql 8.0   |   2.7  |
 | ubuntu 16.04 Xenial |  mysql 5.7   |   3.6  |
 | ubuntu 16.04 Xenial |  mysql 5.7   |   2.7  |
 
