@@ -14,7 +14,7 @@ setup(
     # Couldn't get numpy install to work without
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
-    install_requires = [# 'MySQL-python>=1.2.5',   # Does not support python 3
+    install_requires = [
                         'mysqlclient>=1.3.14',
                         'configparser>=3.3.0',
                         ],
