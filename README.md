@@ -2,11 +2,25 @@ The pymysql_utils module
 ========================
 
 The pymysql_utils package makes interaction with MySQL from
-Python more pythonic than its underlying package MySQL-python.
+Python more pythonic than its underlying package mysqlclient
+(formerly MySQL-python).
+
 Convenience methods for common MySQL operations, such as
 managing tables, insertion, updates, and querying are also
 available. Query results are iterators with `next()` and
 `nextall()` methods
+
+Tested on:
+
+
+
+|  OS                 | MySQL        | Python |
+| ------------------- |:------------: ------: |
+| macos               |  mysql 8.0   |   3.7  |
+| macos               |  mysql 8.0   |   2.7  | 
+| ubuntu 16.04 Xenial |  mysql 5.7   |   3.6  |
+| ubuntu 16.04 Xenial |  mysql 5.7   |   2.7  |
+
 
 Quickstart
 ----------
@@ -35,7 +49,9 @@ db.bulkInsert('myTable', colNames, colValues)
 for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
     print(result)
 
-<need output>
+# row1
+# row2
+# row3
 
 
 ```
@@ -54,13 +70,13 @@ above table `myTable` is populated in the database.
 
 query_str1 = '''
              SELECT col2
-               FROM unittest
+               FROM myTable
               ORDER BY col1
              '''
 
 query_str2 = '''
              SELECT col2
-               FROM unittest
+               FROM myTable
               WHERE col1 = 20
                  OR col1 = 30
            ORDER BY col1
@@ -81,18 +97,18 @@ db.result_count(query_str1)
 # --> 3
 
 results1.next()
-# --> 'col1'
+# --> 'row1'
 
 results2.next()
-# --> 'col2'
+# --> 'row2'
 
 results1.next()
-# --> 'col2'
+# --> 'row2'
 results2.next()
-# --> 'col3'
+# --> 'row3'
 
 results1.next()
-# --> 'col3'
+# --> 'row3'
 
 results2.next()
 # --> raises StopIteration
@@ -100,7 +116,7 @@ results2.next()
 results2.result_count()
 # --> raises ValueError: query exhausted.
 
-
+```
 Installation
 ------------
 
@@ -108,20 +124,21 @@ Installation
 # Possibly in a virtual environment:
 
 pip install pymysql_utils
-nosetests pymysql_utils
-...............
+python setup.py install
 
-Ran 15 tests in 0.604s
+# Testing requires a bit of prep in the local MySQL:
+# a database 'unittest' must be created, and a user
+# 'unittest' without password must have permissions:
+#
+#
+# CREATE DATABASE unittest;   
+# CREATE USER unittest@localhost;
+# GRANT SELECT, INSERT, UPDATE, DELETE,
+#       CREATE, DROP, ALTER
+#    ON `unittest`.* TO 'unittest'@'localhost';
 
-OK
+# The unittests give these instructions as well.
+
+# python setup.py test
 ```
-For the unit tests to run you need a MySQL database
-on your machine with the following setup:
 
-```mysql
-CREATE DATABASE unittest;   
-CREATE USER unittest@localhost;
-GRANT SELECT, INSERT, UPDATE, DELETE,
-      CREATE, DROP, ALTER
-   ON `unittest`.* TO 'unittest'@'localhost';
-```
