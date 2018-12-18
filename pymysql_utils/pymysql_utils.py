@@ -31,7 +31,6 @@ from MySQLdb import ProgrammingError, OperationalError
 from MySQLdb.cursors import DictCursor as DictCursor
 from MySQLdb.cursors import SSCursor as SSCursor
 from MySQLdb.cursors import SSDictCursor as SSDictCursor
-from importlib.resources import path
 
 # To check for variable being a string in both Python 2.7 and 3.x:
 try:
@@ -884,13 +883,15 @@ class MySQLDB(object):
         
         mysql_loc = None
         # Eclipse puts extra info into the env:
-        eclipse_indicator = os.environ.get('XPC_SERVICE_NAME', None)
+        eclipse_indicator = os.getenv('XPC_SERVICE_NAME')
         
         # If the indicator is absent, or it doesn't include
         # the eclipse info, then we are not in Eclipse; the usual
         # case, of course:
         
-        if eclipse_indicator is None or eclipse_indicator.find('org.eclipse.platform.ide') == -1:
+        if eclipse_indicator is None or \
+           eclipse_indicator == '0' or \
+           eclipse_indicator.find('org.eclipse.platform.ide') == -1:
             # Not running in Eclipse; use reliable method to find mysql:
             mysql_loc = subprocess.check_output(
                                         "command -v mysql; exit 0",
