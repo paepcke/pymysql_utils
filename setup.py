@@ -1,10 +1,9 @@
-import multiprocessing
 from setuptools import setup, find_packages
 import os
 import glob
 
-datafiles = ['pymysql_utils/data/ipToCountrySoftware77DotNet.csv']
-
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 setup(
     name = "pymysql_utils",
     version = "2.0",
