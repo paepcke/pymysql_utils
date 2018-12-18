@@ -20,7 +20,7 @@ Updated on Mar 26, 2017
 #         'DELETE', 'CREATE', 'CREATE TEMPORARY TABLES', 
 #         'DROP', 'ALTER' ON unittest.* TO unittest@localhost;
 #
-# The tests are designed to work on MySQL 5.6 and 5.7.
+# The tests are designed to work on MySQL 5.6, 5.7, and 8.0
 
 TEST_ALL = True
 #TEST_ALL = False
@@ -32,10 +32,7 @@ import socket
 import subprocess
 import unittest
 
-from shutilwhich import which
-
-from pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table
-import pymysql_utils
+from pymysql_utils.pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors
 
 
 class TestPymysqlUtils(unittest.TestCase):
@@ -56,14 +53,18 @@ class TestPymysqlUtils(unittest.TestCase):
             mysqldb = MySQLDB(host='localhost', port=3306, user='unittest', db='unittest')
             grant_query = 'SHOW GRANTS FOR unittest@localhost'
             query_it = mysqldb.query(grant_query)
-            # First row of the SHOW GRANTS response should be:
-            first_grant = "GRANT USAGE ON *.* TO 'unittest'@'localhost'"
+            # First row of the SHOW GRANTS response should be
+            # one of:
+            first_grants = ["GRANT USAGE ON *.* TO 'unittest'@'localhost'",
+                            "GRANT USAGE ON *.* TO `unittest`@`localhost`"
+                            ]
             # Second row depends on the order in which the 
             # grants were provided. The row will look something
             # like:
             #   GRANT SELECT, INSERT, UPDATE, DELETE, ..., CREATE, DROP, ALTER ON `unittest`.* TO 'unittest'@'localhost'
             # Verify:
-            if query_it.next() != first_grant:
+            usage_grant = query_it.next()
+            if usage_grant not in first_grants:
                 TestPymysqlUtils.err_msg = '''
                     User 'unittest' is missing USAGE grant needed to run the tests.
                     Also need this in your MySQL: 
@@ -83,7 +84,7 @@ class TestPymysqlUtils(unittest.TestCase):
                     ''' % (needed_grant, 'GRANT %s ON unittest.* TO unittest@localhost;' % ','.join(needed_grants))
                     TestPymysqlUtils.env_ok = False
                     return  
-        except ValueError:
+        except (ValueError,RuntimeError):
             TestPymysqlUtils.err_msg = '''
                For unit testing, localhost MySQL server must have 
                user 'unittest' without password, and a database 
@@ -110,8 +111,11 @@ class TestPymysqlUtils(unittest.TestCase):
         else:
             TestPymysqlUtils.major = major
             TestPymysqlUtils.minor = minor
-            if major != 5 or (minor != 6 and minor != 7):
+            known_versions = [(5,6), (5,7), (8,0)]
+            if (major,minor) not in known_versions:
                 print('Warning: MySQL version is %s.%s; but testing as if V5.7')
+                TestPymysqlUtils.major = 5
+                TestPymysqlUtils.minor = 7
         
 
     def setUp(self):
@@ -123,10 +127,11 @@ class TestPymysqlUtils(unittest.TestCase):
             self.fail(str(e) + " (For unit testing, localhost MySQL server must have user 'unittest' without password, and a database called 'unittest')")
             
         # Make MySQL version more convenient to check:
-        if TestPymysqlUtils.minor >= 7:
-            self.mysql_ge_7 = True
+        if (TestPymysqlUtils.major == 5 and TestPymysqlUtils.minor >= 7) or \
+            TestPymysqlUtils.major >= 8:
+            self.mysql_ge_5_7 = True
         else:
-            self.mysql_ge_7 = False
+            self.mysql_ge_5_7 = False
 
 
     def tearDown(self):
@@ -157,14 +162,16 @@ class TestPymysqlUtils(unittest.TestCase):
                                            '-u',
                                            'unittest',
                                            'unittest',
+                                           '--silent',
+                                           '--skip-column-names',
                                            '-e',
                                            'DESC myTbl;'])
-        expected = 'Field\tType\tNull\tKey\tDefault\tExtra\n' + \
-                   'col4\ttext\tYES\t\tNULL\t\n' + \
-                   'col2\tvarchar(255)\tYES\t\tNULL\t\n' + \
-                   'col3\tfloat\tYES\t\tNULL\t\n' + \
-                   'col1\tint(11)\tYES\t\tNULL\t\n'
-        self.assertEqual(tbl_desc, expected)
+        expected = 'col1\tint(11)\tYES\t\tNULL\t\n' +\
+                    'col2\tvarchar(255)\tYES\t\tNULL\t\n' +\
+                    'col3\tfloat\tYES\t\tNULL\t\n' +\
+                    'col4\ttext\tYES\t\tNULL\t\n'
+
+        self.assertEqual(self.convert_to_string(tbl_desc), expected)
         
         # Query mysql information schema to check for table
         # present. Use raw cursor to test independently from
@@ -339,7 +346,7 @@ class TestPymysqlUtils(unittest.TestCase):
         #    ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
         # MySQL 5.6 just skips: 
         
-        if self.mysql_ge_7:
+        if self.mysql_ge_5_7:
             self.assertEqual(len(warnings), 1)
         else:
             self.assertIsNone(warnings)
@@ -357,10 +364,10 @@ class TestPymysqlUtils(unittest.TestCase):
         colNames = ['col1', 'col2']
         colValues = [(10, 'newCol2')]
         (errors, warnings) = self.mysqldb.bulkInsert('unittest', colNames, colValues, onDupKey=DupKeyAction.IGNORE) #@UnusedVariable
-        # Even when ignoring dup keys, MySQL 5.7 issues a warning
+        # Even when ignoring dup keys, MySQL 5.7/8.x issue a warning
         # for each dup key:
         
-        if self.mysql_ge_7:
+        if self.mysql_ge_5_7:
             self.assertEqual(len(warnings), 1)
         else:
             self.assertIsNone(warnings)
@@ -457,7 +464,7 @@ class TestPymysqlUtils(unittest.TestCase):
         self.mysqldb = MySQLDB(host='localhost',
                                user='unittest',
                                db='unittest',
-                               cursor_class=pymysql_utils.Cursors.DICT)
+                               cursor_class=Cursors.DICT)
         
         for result in self.mysqldb.query('SELECT col1,col2 FROM unittest'):
           
@@ -505,7 +512,7 @@ class TestPymysqlUtils(unittest.TestCase):
     def testReadSysVariable(self):
         this_host = socket.gethostname()
         mysql_hostname = self.mysqldb.query('SELECT @@hostname').next()
-        self.assertEqual(mysql_hostname, this_host)
+        self.assertIn(mysql_hostname, [this_host, 'localhost'])
 
     #-------------------------
     # User-Level Variables 
@@ -538,7 +545,7 @@ class TestPymysqlUtils(unittest.TestCase):
         
         try:
             # Set a password for the unittest user:
-            if self.mysql_ge_7:
+            if self.mysql_ge_5_7:
                 self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = 'foobar'")
             else:
                 self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = PASSWORD('foobar')")
@@ -561,7 +568,7 @@ class TestPymysqlUtils(unittest.TestCase):
         finally:
             # Make sure the remove the pwd from user unittest,
             # so that other tests will run successfully:
-            if self.mysql_ge_7:
+            if self.mysql_ge_5_7:
                 self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = ''")
             else:
                 self.mysqldb.execute("SET PASSWORD FOR unittest@localhost = PASSWORD('')")
@@ -630,31 +637,32 @@ class TestPymysqlUtils(unittest.TestCase):
             with self.assertRaises(Exception) as context:
                 MySQLDB(host=None, port=3306, user='unittest', db='unittest')
             self.assertTrue("None value(s) for ['host']; none of host,port,user,passwd or db must be None" 
-                            in context.exception)
+                            in str(context.exception))
     
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=None, user='unittest', db='unittest')
             self.assertTrue("None value(s) for ['port']; none of host,port,user,passwd or db must be None" 
-                            in context.exception)
+                            in str(context.exception))
     
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user=None, db='unittest')
             self.assertTrue("None value(s) for ['user']; none of host,port,user,passwd or db must be None" 
-                            in context.exception)
+                            in str(context.exception))
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user='unittest', db=None)
             self.assertTrue("None value(s) for ['db']; none of host,port,user,passwd or db must be None" 
-                            in context.exception)
+                            in str(context.exception))
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host='localhost', port=3306, user='unittest', passwd=None, db='unittest')
-            self.assertTrue("None value(s) for ['passwd']; none of host,port,user,passwd or db must be None" in context.exception)
+            self.assertTrue("None value(s) for ['passwd']; none of host,port,user,passwd or db must be None" 
+                            in str(context.exception))
             
             with self.assertRaises(Exception) as context:
                 MySQLDB(host=None, port=3306, user=None, db=None)
             self.assertTrue("None value(s) for ['host', 'db', 'user']; none of host,port,user,passwd or db must be None" 
-                            in context.exception)
+                            in str(context.exception))
         except AssertionError:
             # Create a better message than 'False is not True'.
             # That useless msg is generated if an expected exception
@@ -668,19 +676,19 @@ class TestPymysqlUtils(unittest.TestCase):
                 # Integer instead of string for host:
                 MySQLDB(host=10, port=3306, user='myUser', db='myDb')
             self.assertTrue("Value(s) ['host'] have bad type;host,user,passwd, and db must be strings; port must be int."
-                            in context.exception)
+                            in str(context.exception))
             # Two illegal types: host and user:
             with self.assertRaises(Exception) as context:
                 # Integer instead of string for host:
                 MySQLDB(host=10, port=3306, user=30, db='myDb')
             self.assertTrue("Value(s) ['host', 'user'] have bad type;host,user,passwd, and db must be strings; port must be int."
-                            in context.exception)
+                            in str(context.exception))
             
             # Port being string instead of required int:
             with self.assertRaises(Exception) as context:
                 # Integer instead of string for host:
                 MySQLDB(host='myHost', port='3306', user='myUser', db='myDb')
-            self.assertTrue("Port must be an integer; was <type 'str'>." in context.exception)
+            self.assertTrue("Port must be an integer; was" in str(context.exception))
             
         except AssertionError:
             # Create a better message than 'False is not True'.
@@ -700,6 +708,11 @@ class TestPymysqlUtils(unittest.TestCase):
         self.assertFalse(self.mysqldb.isOpen())
 
     # ----------------------- UTILITIES -------------------------
+    
+    #-------------------------
+    # buildSmallDb 
+    #--------------
+    
     def buildSmallDb(self):
         '''
         Creates a two-col, three-row table in database
@@ -726,6 +739,10 @@ class TestPymysqlUtils(unittest.TestCase):
         cur.close()
         return 3
     
+    #-------------------------
+    # get_mysql_version 
+    #--------------
+    
     @classmethod  
     def get_mysql_version(cls):
         '''
@@ -736,14 +753,14 @@ class TestPymysqlUtils(unittest.TestCase):
         '''
         
         # Where is mysql client program?
-        mysql_path = which('mysql')
+        mysql_path = MySQLDB.find_mysql_path()
       
         # Get version string, which looks like this:
         #   'Distrib 5.7.15, for osx10.11 (x86_64) using  EditLine wrapper\n'
-        version_str = subprocess.check_output([mysql_path, '--version'])
+        version_str = subprocess.check_output([mysql_path, '--version']).decode('utf-8')
         
         # Isolate the major and minor version numbers (e.g. '5', and '7')
-        pat = re.compile(r'Distrib ([0-9]*)[.]([0-9]*)[.]')
+        pat = re.compile(r'([0-9]*)[.]([0-9]*)[.]')
         match_obj = pat.search(version_str)
         if match_obj is None:
             return (None,None)
@@ -758,6 +775,41 @@ class TestPymysqlUtils(unittest.TestCase):
 #         warnings = self.mysqldb.bulkInsert('unittest', colNames, colValues)
 #         self.assertIsNone(warnings)
 #         return 3
+
+    #-------------------------
+    # convert_to_string
+    #--------------
+    
+    def convert_to_string(self, strLike):
+        '''
+        The str/byte/unicode type mess between
+        Python 2.7 and 3.x. We want as 'normal'
+        a string as possible. Surely there is a
+        more elegant way.
+        
+        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.
+            a Python 2.7 unicode string, or a Python 2.7 str.
+        @type strLike: {str|unicode|byte}
+        '''
+        
+        try:
+            if type(strLike) == eval('unicode'):
+                # Python 2.7 unicode --> str:
+                strLike = strLike.encode('UTF-8')
+        except NameError:
+            pass
+        
+        try:
+            if type(strLike) == eval('bytes'):
+                # Python 3 byte string:
+                strLike = strLike.decode('UTF-8')
+        except NameError:
+            pass
+        
+        return strLike
+
+    
+
 
 if __name__ == "__main__":
     # import sys;sys.argv = ['', 'Test.testQuery']

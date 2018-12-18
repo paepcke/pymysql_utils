@@ -3,7 +3,6 @@ Created on Sep 24, 2013
 
 @author: paepcke
 
-
 Modifications:
   - Dec 30, 2013: Added closing of connection to close() method
   - Mar 26, 2017: Major overhaul; fixed bulk insert.
@@ -23,11 +22,23 @@ import subprocess
 import tempfile
 from warnings import filterwarnings, resetwarnings
 
+from builtins import str
+
+
+import MySQLdb
+from MySQLdb import Warning as db_warning
+from MySQLdb import ProgrammingError, OperationalError
 from MySQLdb.cursors import DictCursor as DictCursor
 from MySQLdb.cursors import SSCursor as SSCursor
 from MySQLdb.cursors import SSDictCursor as SSDictCursor
-from _mysql_exceptions import ProgrammingError, OperationalError
+from importlib.resources import path
 
+# To check for variable being a string in both Python 2.7 and 3.x:
+try:
+    eval('basestring')
+except NameError:
+    # We are running Python 3:
+    basestring = str
 
 class DupKeyAction:
     PREVENT = 0
@@ -143,18 +154,9 @@ class MySQLDB(object):
         self.most_recent_query = None
         self.connection = None
         
-        # Find location of mysql client program:
-        try:
-            # The following doesn't work when running in Eclipse (gives usage for 'which'),
-            # because it is running in the system env, not the bash env which
-            # its usually enriched PATH var.
-            self.mysql_loc = subprocess.check_output(['which', 'mysql']).strip()
-        except subprocess.CalledProcessError as e:
-            # Last resort: try /usr/local/bin/mysql:
-            if os.path.exists('/usr/local/bin/mysql'):
-                self.mysql_loc = '/usr/local/bin/mysql'
-            else:
-                raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
+        # Find location of mysql client program.
+        # Will raise error if not found.
+        MySQLDB.find_mysql_path()
 
         try:
             if cursor_class is None:
@@ -178,12 +180,12 @@ class MySQLDB(object):
         except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
-                             (host, port, user, pwd, db, `e`))
+                             (host, port, user, pwd, db, repr(e)))
         # Unanticipated errors:
         except Exception as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise RuntimeError('Error when connecting to database with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %
-                             (host, port, user, pwd, db, `e`))
+                             (host, port, user, pwd, db, repr(e)))
       
 
     #-------------------------
@@ -283,9 +285,9 @@ class MySQLDB(object):
                 cursor.execute('DROP TABLE IF EXISTS %s' % tableName)
             self.connection.commit()
         except OperationalError as e:
-            raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
+            raise ValueError("In pymysql_utils dropTable(): %s" % repr(e))
         except ProgrammingError as e:
-            raise ValueError("In pymysql_utils dropTable(): %s" % `e`)
+            raise ValueError("In pymysql_utils dropTable(): %s" % repr(e))
         finally:
             cursor.close()
 
@@ -306,9 +308,9 @@ class MySQLDB(object):
             try:
                 cursor.execute('TRUNCATE TABLE %s' % tableName)
             except OperationalError as e:
-                raise ValueError("In pymysql_utils truncateTable(): %s." % `e`)
+                raise ValueError("In pymysql_utils truncateTable(): %s." % repr(e))
             except ProgrammingError as e:
-                raise ValueError("In pymysql_utils truncateTable(): %s." % `e`)
+                raise ValueError("In pymysql_utils truncateTable(): %s." % repr(e))
             self.connection.commit()
         finally:
             cursor.close()
@@ -410,9 +412,9 @@ class MySQLDB(object):
         errors   = []
         warnings = []
 
-        tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv')
+        tmpCSVFile = tempfile.NamedTemporaryFile(dir='/tmp',prefix='bulkInsert',suffix='.csv',mode='w')
         # Allow MySQL to read this tmp file:
-        os.chmod(tmpCSVFile.name, 0644)
+        os.chmod(tmpCSVFile.name, 0o644)
         self.csvWriter = csv.writer(tmpCSVFile, 
                                     dialect='excel-tab', 
                                     lineterminator='\n', 
@@ -424,7 +426,8 @@ class MySQLDB(object):
         for row in valueTupleArray:
             # Convert each element in row to a string,
             # including mixed-in Unicode Strings:
-            self.csvWriter.writerow([rowElement for rowElement in self._stringifyList(row)])
+            clean_row = [rowElement for rowElement in self._stringifyList(row)]
+            self.csvWriter.writerow(clean_row)
         tmpCSVFile.flush()
         
         # Create the MySQL column name list needed in the LOAD INFILE below.
@@ -569,8 +572,13 @@ class MySQLDB(object):
         :raise ValueError on MySQL errors.
         '''
 
-        queryStr = queryStr.encode('UTF-8')
+        # The str/byte/unicode type mess between
+        # Python 2.7 and 3.x. We want as 'normal'
+        # a string as possible. Surely there is a
+        # more elegant way:
         
+        queryStr = self.convert_to_string(queryStr)
+       
         # For if caller never exhausts the results by repeated calls,
         # and to find cursor by query to get (e.g.) num results:
         cursor = self.connection.cursor()
@@ -585,7 +593,7 @@ class MySQLDB(object):
         try:        
             cursor.execute(queryStr)
         except ProgrammingError as e:
-            raise ValueError(`e`)
+            raise ValueError(repr(e))
         return QueryResult(cursor, queryStr, self)
         
     #-------------------------
@@ -666,7 +674,7 @@ class MySQLDB(object):
                 # will be caught in the show_warnings()
                 # below; so ignore it here:
                 cursor.close()
-            except Exception as e:
+            except Exception:
                 pass
 
         mysql_warnings = self.connection.show_warnings()
@@ -744,7 +752,8 @@ class MySQLDB(object):
         # Since there will be few entries, the
         # following dictionary scan isn't a problem:
     
-        for query_str, the_cursor in self.cursors.items():
+        cursors_copy = self.cursors.copy()
+        for query_str, the_cursor in cursors_copy.items():
             if the_cursor == cursor:
                 del self.cursors[query_str]
         cursor.close()
@@ -771,7 +780,7 @@ class MySQLDB(object):
             if isinstance(el, basestring):
                 try:
                     # If value is not already UTF-8, encode it:
-                    cleanStr = unicode(el, 'UTF-8', 'replace')
+                    cleanStr = str(el, 'UTF-8', 'replace')
                 except TypeError:
                     # Value was already in Unicode, so all is well:
                     cleanStr = el
@@ -783,10 +792,43 @@ class MySQLDB(object):
             else: # e.g. numbers
                 resList.append(el)
         try:
-            return ','.join(map(unicode,resList))
+            return ','.join(map(str,resList))
         except UnicodeEncodeError as e:
-            print('Unicode related error: %s' % `e`)
+            print('Unicode related error: %s' % repr(e))
             
+    #-------------------------
+    # convert_to_string
+    #--------------
+    
+    def convert_to_string(self, strLike):
+        '''
+        The str/byte/unicode type mess between
+        Python 2.7 and 3.x. We want as 'normal'
+        a string as possible. Surely there is a
+        more elegant way.
+        
+        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.
+            a Python 2.7 unicode string, or a Python 2.7 str.
+        @type strLike: {str|unicode|byte}
+        '''
+        
+        try:
+            if type(strLike) == eval('unicode'):
+                # Python 2.7 unicode --> str:
+                strLike = strLike.encode('UTF-8')
+        except NameError:
+            pass
+        
+        try:
+            if type(strLike) == eval('bytes'):
+                # Python 3 byte string:
+                strLike = strLike.decode('UTF-8')
+        except NameError:
+            pass
+        
+        return strLike
+
+    
     #-------------------------
     # _stringifyList
     #--------------
@@ -815,6 +857,64 @@ class MySQLDB(object):
                     yield(str(element))
             except UnicodeEncodeError:
                 yield element.encode('UTF-8','ignore')
+    
+    #-------------------------
+    # find_mysql_path 
+    #--------------
+    
+    @classmethod            
+    def find_mysql_path(cls):
+        '''
+        Finds the location of the mysql client program
+        on the current machine. Needed for testing. So
+        we make sure the method works when running outside
+        of Eclipse as well as in.
+        
+        Stores path in MySQLDB.mysql_loc.
+        
+        @param cls: class instance of MySQLDB
+        @type cls: MySQLDB
+        @return: path to mysql client application
+        @rtype: str
+        '''
+        
+        # The 'command -v mysql...' idiom always returns an empty
+        # string when probed from Eclipse. To facilitate debugging
+        # we find an alternative method for running in Eclipse.  
+        
+        mysql_loc = None
+        # Eclipse puts extra info into the env:
+        eclipse_indicator = os.environ.get('XPC_SERVICE_NAME', None)
+        
+        # If the indicator is absent, or it doesn't include
+        # the eclipse info, then we are not in Eclipse; the usual
+        # case, of course:
+        
+        if eclipse_indicator is None or eclipse_indicator.find('org.eclipse.platform.ide') == -1:
+            # Not running in Eclipse; use reliable method to find mysql:
+            mysql_loc = subprocess.check_output(
+                                        "command -v mysql; exit 0",
+                                        stderr=subprocess.STDOUT,
+                                        shell=True,
+                                        env=os.environ).strip()
+            if len(mysql_loc) == 0:  
+                raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
+        else:
+            # We are in Eclipse:
+            possible_paths = ['/usr/local/bin/mysql',
+                              '/usr/local/mysql/bin/mysql',
+                              '/usr/bin/mysql',
+                              '/bin/mysql']
+            for path in possible_paths:
+                if os.path.exists(path):
+                    mysql_loc = path
+                    break
+            if mysql_loc is None:
+                raise RuntimeError("MySQL client not found on this machine (%s)" % socket.gethostname())
+        
+        MySQLDB.mysql_loc = mysql_loc
+        return mysql_loc
+        
 
 # ----------------------- Class QueryResult -------------------------
 
@@ -868,7 +968,9 @@ class QueryResult(object):
                 return res[0]
             else:
                 return res
-          
+         
+    __next__ = next
+    
     def nextall(self):
         '''
         Returns the remaining query results as a 
@@ -910,7 +1012,7 @@ class QueryResult(object):
 #    with no_warn_no_table():
 #       ... DROP TABLE IF NOT EXISTS ...
 # without annoying Python-level warnings that the
-# table did not exist:
+# table did not exist:¯
 
 @contextmanager
 def no_warn_no_table():
