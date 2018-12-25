@@ -25,7 +25,7 @@ from warnings import filterwarnings, resetwarnings
 
 import MySQLdb
 from MySQLdb import Warning as db_warning
-from MySQLdb import ProgrammingError, OperationalError
+from MySQLdb._exceptions import ProgrammingError, OperationalError
 from MySQLdb.cursors import DictCursor as DictCursor
 from MySQLdb.cursors import SSCursor as SSCursor
 from MySQLdb.cursors import SSDictCursor as SSDictCursor
@@ -494,6 +494,7 @@ class MySQLDB(object):
                       a MySQL FROM clause (don't include the 'FROM' keyword)
         :type fromCondition: String
         :return (None,None) if all ok, else tuple (errorList, warningsList)
+        :rtype {(None,None) | ([str],[str])}
         '''
 
         errors   = []
@@ -646,6 +647,7 @@ class MySQLDB(object):
         :type query: String
         :return: (None,None) if all went well, else a tuple:
             (listOrErrors, listOfWarnings)
+        :rtype {(None,None) | ([str],[str])}
         '''
         
         errors   = []
@@ -708,7 +710,7 @@ class MySQLDB(object):
         :param   params: tuple of actuals for the parameters.
         :type    params: (<any>)
         :return: (None,None) if all ok, else tuple: (errorList, warningsList)
-                
+        :rtype: {(None,None) | ([str],[str])}  
         '''
 
         errors   = []
