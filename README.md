@@ -119,8 +119,8 @@ results2.result_count()
 
 * Many methods return a two-tuple that includes a list of warnings, and a
   list of errors.
-* Check the [in-code documentation](docs/pymysql_utils.m.html) for all
-  available methods.
+* Check the [in-code documentation](http://htmlpreview.github.com/?https://github.com/paepcke/pymysql_utils/blob/gh-pages/docs/pymysql_utils.m.html) 
+  for all available methods.
 * A number of frequent SQL operations can conveniently be accomplised
   via dedicated methods: `close`, `createTable`, `dropTable`, `insert`,
   `bulkInsert`, `truncateTable`, and `update`.
