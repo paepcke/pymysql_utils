@@ -1119,7 +1119,7 @@ table {
   <p>Created on Sep 24, 2013
 </br>@author: Andreas Paepcke
 </br>Wrapper for the mysqlclient Python MySQL access library. Replaces
-the cursor notion with query result iterators, adds methods for 
+:the cursor notion with query result iterators, adds methods for 
 frequent database operations.
 </br>For usage details, see <code>Github README &lt;https://github.com/paepcke/pymysql_utils&gt;</code>
 or the PyPi project description. HTML documentation for the code below
@@ -1135,7 +1135,7 @@ that have been tested.
 <span class="sd">Created on Sep 24, 2013</span>
 <span class="sd">&lt;/br&gt;@author: Andreas Paepcke</span>
 <span class="sd">&lt;/br&gt;Wrapper for the mysqlclient Python MySQL access library. Replaces</span>
-<span class="sd">the cursor notion with query result iterators, adds methods for </span>
+<span class="sd">:the cursor notion with query result iterators, adds methods for </span>
 <span class="sd">frequent database operations.</span>
 <span class="sd">&lt;/br&gt;For usage details, see `Github README &lt;https://github.com/paepcke/pymysql_utils&gt;`</span>
 <span class="sd">or the PyPi project description. HTML documentation for the code below</span>
@@ -1820,10 +1820,7 @@ that have been tested.
 <span class="sd">        Python 2.7 and 3.x. We want as &#39;normal&#39;</span>
 <span class="sd">        a string as possible. Surely there is a</span>
 <span class="sd">        more elegant way.</span>
-<span class="sd">        &lt;/br&gt;        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.</span>
-<span class="sd">            a Python 2.7 unicode string, or a Python 2.7 str.</span>
-<span class="sd">        @type strLike: {str|unicode|byte}</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &lt;/br&gt;        &lt;b&gt;strLike&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;{str|unicode|byte}&lt;/i&gt;&lt;/b&gt;): a Python 3 str (i.e. unicode string), a Python 3 binary str. a Python 2.7 unicode string, or a Python 2.7 str.&lt;/br&gt;        &#39;&#39;&#39;</span>
         
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">strLike</span><span class="p">)</span> <span class="o">==</span> <span class="nb">eval</span><span class="p">(</span><span class="s1">&#39;unicode&#39;</span><span class="p">):</span>
@@ -1879,11 +1876,7 @@ that have been tested.
 <span class="sd">        we make sure the method works when running outside</span>
 <span class="sd">        of Eclipse as well as in.</span>
 <span class="sd">        &lt;/br&gt;        Stores path in MySQLDB.mysql_loc.</span>
-<span class="sd">        &lt;/br&gt;        @param cls: class instance of MySQLDB</span>
-<span class="sd">        @type cls: MySQLDB</span>
-<span class="sd">        @return: path to mysql client application</span>
-<span class="sd">        @rtype: str</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &lt;/br&gt;        &lt;b&gt;cls&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;MySQLDB&lt;/i&gt;&lt;/b&gt;): class instance of MySQLDB&lt;/br&gt;        &lt;b&gt;returns:&lt;/b&gt; path to mysql client application&lt;/br&gt;        &lt;b&gt;return type:&lt;/b&gt; str&lt;/br&gt;        &#39;&#39;&#39;</span>
         
         <span class="c1"># The &#39;command -v mysql...&#39; idiom always returns an empty</span>
         <span class="c1"># string when probed from Eclipse. To facilitate debugging</span>
@@ -2882,10 +2875,7 @@ that have been tested.
 <span class="sd">        Python 2.7 and 3.x. We want as &#39;normal&#39;</span>
 <span class="sd">        a string as possible. Surely there is a</span>
 <span class="sd">        more elegant way.</span>
-<span class="sd">        &lt;/br&gt;        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.</span>
-<span class="sd">            a Python 2.7 unicode string, or a Python 2.7 str.</span>
-<span class="sd">        @type strLike: {str|unicode|byte}</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &lt;/br&gt;        &lt;b&gt;strLike&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;{str|unicode|byte}&lt;/i&gt;&lt;/b&gt;): a Python 3 str (i.e. unicode string), a Python 3 binary str. a Python 2.7 unicode string, or a Python 2.7 str.&lt;/br&gt;        &#39;&#39;&#39;</span>
         
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">strLike</span><span class="p">)</span> <span class="o">==</span> <span class="nb">eval</span><span class="p">(</span><span class="s1">&#39;unicode&#39;</span><span class="p">):</span>
@@ -2941,11 +2931,7 @@ that have been tested.
 <span class="sd">        we make sure the method works when running outside</span>
 <span class="sd">        of Eclipse as well as in.</span>
 <span class="sd">        &lt;/br&gt;        Stores path in MySQLDB.mysql_loc.</span>
-<span class="sd">        &lt;/br&gt;        @param cls: class instance of MySQLDB</span>
-<span class="sd">        @type cls: MySQLDB</span>
-<span class="sd">        @return: path to mysql client application</span>
-<span class="sd">        @rtype: str</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &lt;/br&gt;        &lt;b&gt;cls&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;MySQLDB&lt;/i&gt;&lt;/b&gt;): class instance of MySQLDB&lt;/br&gt;        &lt;b&gt;returns:&lt;/b&gt; path to mysql client application&lt;/br&gt;        &lt;b&gt;return type:&lt;/b&gt; str&lt;/br&gt;        &#39;&#39;&#39;</span>
         
         <span class="c1"># The &#39;command -v mysql...&#39; idiom always returns an empty</span>
         <span class="c1"># string when probed from Eclipse. To facilitate debugging</span>
@@ -3289,9 +3275,7 @@ of tuples with the warnings.
 Python 2.7 and 3.x. We want as 'normal'
 a string as possible. Surely there is a
 more elegant way.
-</br>        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.
-    a Python 2.7 unicode string, or a Python 2.7 str.
-@type strLike: {str|unicode|byte}</p></div>
+</br>        <b>strLike</b> (<b></i>{str|unicode|byte}</i></b>): a Python 3 str (i.e. unicode string), a Python 3 binary str. a Python 2.7 unicode string, or a Python 2.7 str.</br></p></div>
   <div class="source_cont">
   <p class="source_link"><a href="javascript:void(0);" onclick="toggle('source-pymysql_utils.MySQLDB.convert_to_string', this);">Show source &equiv;</a></p>
   <div id="source-pymysql_utils.MySQLDB.convert_to_string" class="source">
@@ -3301,10 +3285,7 @@ more elegant way.
 <span class="sd">    Python 2.7 and 3.x. We want as &#39;normal&#39;</span>
 <span class="sd">    a string as possible. Surely there is a</span>
 <span class="sd">    more elegant way.</span>
-<span class="sd">    &lt;/br&gt;        @param strLike: a Python 3 str (i.e. unicode string), a Python 3 binary str.</span>
-<span class="sd">        a Python 2.7 unicode string, or a Python 2.7 str.</span>
-<span class="sd">    @type strLike: {str|unicode|byte}</span>
-<span class="sd">    &#39;&#39;&#39;</span>
+<span class="sd">    &lt;/br&gt;        &lt;b&gt;strLike&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;{str|unicode|byte}&lt;/i&gt;&lt;/b&gt;): a Python 3 str (i.e. unicode string), a Python 3 binary str. a Python 2.7 unicode string, or a Python 2.7 str.&lt;/br&gt;        &#39;&#39;&#39;</span>
     
     <span class="k">try</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">strLike</span><span class="p">)</span> <span class="o">==</span> <span class="nb">eval</span><span class="p">(</span><span class="s1">&#39;unicode&#39;</span><span class="p">):</span>
@@ -3978,10 +3959,7 @@ on the current machine. Needed for testing. So
 we make sure the method works when running outside
 of Eclipse as well as in.
 </br>        Stores path in MySQLDB.mysql_loc.
-</br>        @param cls: class instance of MySQLDB
-@type cls: MySQLDB
-@return: path to mysql client application
-@rtype: str</p></div>
+</br>        <b>cls</b> (<b></i>MySQLDB</i></b>): class instance of MySQLDB</br>        <b>returns:</b> path to mysql client application</br>        <b>return type:</b> str</br></p></div>
   <div class="source_cont">
   <p class="source_link"><a href="javascript:void(0);" onclick="toggle('source-pymysql_utils.MySQLDB.find_mysql_path', this);">Show source &equiv;</a></p>
   <div id="source-pymysql_utils.MySQLDB.find_mysql_path" class="source">
@@ -3993,11 +3971,7 @@ of Eclipse as well as in.
 <span class="sd">    we make sure the method works when running outside</span>
 <span class="sd">    of Eclipse as well as in.</span>
 <span class="sd">    &lt;/br&gt;        Stores path in MySQLDB.mysql_loc.</span>
-<span class="sd">    &lt;/br&gt;        @param cls: class instance of MySQLDB</span>
-<span class="sd">    @type cls: MySQLDB</span>
-<span class="sd">    @return: path to mysql client application</span>
-<span class="sd">    @rtype: str</span>
-<span class="sd">    &#39;&#39;&#39;</span>
+<span class="sd">    &lt;/br&gt;        &lt;b&gt;cls&lt;/b&gt; (&lt;b&gt;&lt;/i&gt;MySQLDB&lt;/i&gt;&lt;/b&gt;): class instance of MySQLDB&lt;/br&gt;        &lt;b&gt;returns:&lt;/b&gt; path to mysql client application&lt;/br&gt;        &lt;b&gt;return type:&lt;/b&gt; str&lt;/br&gt;        &#39;&#39;&#39;</span>
     
     <span class="c1"># The &#39;command -v mysql...&#39; idiom always returns an empty</span>
     <span class="c1"># string when probed from Eclipse. To facilitate debugging</span>
