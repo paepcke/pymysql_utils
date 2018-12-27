@@ -1,8 +1,7 @@
-The pymysql_utils module
-========================
+# The pymysql_utils module
 
 The pymysql_utils package makes interaction with MySQL from
-Python more pythonic than its underlying package mysqlclient
+Python more pythonic than its underlying package `mysqlclient`
 (formerly MySQL-python).
 
 Convenience methods for common MySQL operations, such as
@@ -13,7 +12,6 @@ available. Query results are iterators with `next()` and
 Tested on:
 
 
-
 |  OS                 | MySQL        | Python |
 | ------------------- | ------------ | ------ |
 | macos               |  mysql 8.0   |   3.7  |
@@ -22,8 +20,7 @@ Tested on:
 | ubuntu 16.04 Xenial |  mysql 5.7   |   2.7  |
 
 
-Quickstart
-----------
+##Quickstart
 
 ```python
 from pymysql_utils.pymysql_utils import MySQLDB
@@ -55,8 +52,7 @@ for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
 
 
 ```
-A Bit More Detail
------------------
+##A Bit More Detail
 
 The database connection is encapsulated in an instance of
 `MySQLDB`. This instance can maintain multiple queries
@@ -117,8 +113,8 @@ results2.result_count()
 # --> raises ValueError: query exhausted.
 
 ```
-Installation
-------------
+##Installation
+
 
 ```bash
 # Possibly in a virtual environment:
