@@ -18,7 +18,7 @@ Tested on:
 | ubuntu 16.04 Xenial |  mysql 5.7   |   3.6  |
 | ubuntu 16.04 Xenial |  mysql 5.7   |   2.7  |
 
-##Quickstart
+## Quickstart
 
 ```python
 from pymysql_utils.pymysql_utils import MySQLDB
@@ -54,7 +54,7 @@ for result in db.query('SELECT col2 FROM myTable ORDER BY col1'):
 
 
 ```
-##A Bit More Detail
+## A Bit More Detail
 
 The database connection is encapsulated in an instance of
 `MySQLDB`. This instance can maintain multiple queries
@@ -137,7 +137,7 @@ results2.result_count()
   your code is to place the password into a file in a well protected
   directory, such as `~/.ssh/mysql`. Then read the password from there.
   
-##Installation
+## Installation
 
 
 ```bash
