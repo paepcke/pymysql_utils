@@ -1,2 +1,0 @@
-recursive-include pymysql_utils *.csv
-recursive-include doc *
