@@ -1,14 +1,19 @@
 '''
 Created on Sep 24, 2013
 
-@author: paepcke
+@author: Andreas Paepcke
 
-Modifications:
-  - Dec 30, 2013: Added closing of connection to close() method
-  - Mar 26, 2017: Major overhaul; fixed bulk insert.
+Wrapper for the mysqlclient Python MySQL access library. Replaces
+:the cursor notion with query result iterators, adds methods for 
+frequent database operations.
 
-For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`_.
-This module is designed for MySQL 5.6 and 5.7. 
+For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`
+or the PyPi project description. HTML documentation for the code below
+is available in the docs subdirectory.
+
+This module is designed for MySQL 5.6, 5.7, and 8.0. Both, Python 2.7,
+and Python 3.6+ are supported. See documentation for the combinations
+that have been tested. 
  
 '''
 
@@ -85,20 +90,20 @@ class MySQLDB(object):
         Values must be one of Cursors.DICT, Cursors.SS_CURSOR,
         etc. See definition of class Cursors above. 
         
-        :param host: MySQL host
-        :type host: string
-        :param port: MySQL host's port
-        :type port: int
-        :param user: user to log in as
-        :type user: string
-        :param passwd: password to use for given user
-        :type passwd: string
-        :param db: database to connect to within server
-        :type db: string
-        :param cursor_class: choice of how rows are returned
-        :type cursor_class: Cursors
-        :raise ValueError
-        :raise RuntimeError if mysql client program not found.
+        @param host: MySQL host
+        @type host: string
+        @param port: MySQL host's port
+        @type port: int
+        @param user: user to log in as
+        @type user: string
+        @param passwd: password to use for given user
+        @type passwd: string
+        @param db: database to connect to within server
+        @type db: string
+        @param cursor_class: choice of how rows are returned
+        @type cursor_class: Cursors
+        @raise ValueError
+        @raise RuntimeError if mysql client program not found.
     
         '''
         
@@ -193,8 +198,8 @@ class MySQLDB(object):
         '''
         Return name of database to which this MySQLDB is connected.
         
-        :return: name of database within MySQL server to which MySQLDB instance is connected.
-        :rtype: String
+        @return: name of database within MySQL server to which MySQLDB instance is connected.
+        @rtype: String
         '''
         return self.db
     
@@ -242,11 +247,11 @@ class MySQLDB(object):
         The schema is a dict mappingt column names to 
         column types. Example: {'col1' : 'INT', 'col2' : 'TEXT'}
 
-        :param tableName: name of new table
-        :type tableName: String
-        :param schema: dictionary mapping column names to column types
-        :type schema: Dict<String,String>
-        :raise: ValueError: if table to truncate does not exist or permissions issues.        
+        @param tableName: name of new table
+        @type tableName: String
+        @param schema: dictionary mapping column names to column types
+        @type schema: Dict<String,String>
+        @raise: ValueError: if table to truncate does not exist or permissions issues.        
         '''
         colSpec = ''
         for colName, colVal in schema.items():
@@ -271,9 +276,9 @@ class MySQLDB(object):
         '''
         Delete table safely. No errors
 
-        :param tableName: name of table
-        :type tableName: String
-        :raise: ValueError: if table to drop does not exist or permissions issues.        
+        @param tableName: name of table
+        @type tableName: String
+        @raise: ValueError: if table to drop does not exist or permissions issues.        
         '''
         cursor = self.connection.cursor()
         try:
@@ -296,9 +301,9 @@ class MySQLDB(object):
         '''
         Delete all table rows. No errors
 
-        :param tableName: name of table
-        :type tableName: String
-        :raise: ValueError: if table to truncate does not exist or permissions issues.
+        @param tableName: name of table
+        @type tableName: String
+        @raise: ValueError: if table to truncate does not exist or permissions issues.
         '''
         cursor = self.connection.cursor()
         try:
@@ -323,12 +328,12 @@ class MySQLDB(object):
         Given a dictionary mapping column names to column values,
         insert the data into a specified table
 
-        :param tblName: name of table to insert into
-        :type tblName: String
-        :param colnameValueDict: mapping of column name to column value
-        :type colnameValueDict: Dict<String,Any>
-        :return (None,None) if all ok, else tuple (errorList, warningsList)
-        :rtype: {(None,None) | ({ (str) | None},{ (str) | None})}        
+        @param tblName: name of table to insert into
+        @type tblName: String
+        @param colnameValueDict: mapping of column name to column value
+        @type colnameValueDict: Dict<String,Any>
+        @return (None,None) if all ok, else tuple (errorList, warningsList)
+        @rtype: {(None,None) | ({ (str) | None},{ (str) | None})}        
         '''
 
         errors   = []
@@ -381,28 +386,28 @@ class MySQLDB(object):
         Returns `None` if no errors/warnings, else returns the tuple
         of tuples with the warnings.
                 
-        :param tblName: table into which to insert
-        :type  tblName: string
-        :param colNameTuple: tuple containing column names in proper order, i.e. 
+        @param tblName: table into which to insert
+        @type  tblName: string
+        @param colNameTuple: tuple containing column names in proper order, i.e. 
                corresponding to valueTupleArray orders.
-        :type  colNameTuple: (str[,str[...]])
-        :param valueTupleArray: array of n-tuples, which hold the values. Order of
+        @type  colNameTuple: (str[,str[...]])
+        @param valueTupleArray: array of n-tuples, which hold the values. Order of
                values must correspond to order of column names in colNameTuple.
-        :type  valueTupleArray: `[(<MySQLVal> [,<MySQLval>,...]])`
-        :param onDupKey: determines action when incoming row would duplicate an existing row's
+        @type  valueTupleArray: `[(<MySQLVal> [,<MySQLval>,...]])`
+        @param onDupKey: determines action when incoming row would duplicate an existing row's
                unique key. If set to DupKeyAction.IGNORE, then the incoming tuple is
                skipped. If set to DupKeyAction.REPLACE, then the incoming tuple replaces
                the existing tuple. By default, each attempt to insert a duplicate key
                generates a warning.
-        :type  onDupKey: DupKeyAction
-        :return: (None,None) is no errors or warnings occurred, else 
+        @type  onDupKey: DupKeyAction
+        @return: (None,None) is no errors or warnings occurred, else 
                 a tuple with (errorList, warningsList).
                 Elements of warningsList reflect MySQL's output of "show warnings;"
                 Example::
                 ((u'Warning', 1062L, u"Duplicate entry '10' for key 'PRIMARY'"),)
                             
-        :rtype: {(None,None) | ({ (str) | None},{ (str) | None})}
-        :raise: ValueError if bad parameter.
+        @rtype: {(None,None) | ({ (str) | None},{ (str) | None})}
+        @raise: ValueError if bad parameter.
         
         '''
 
@@ -482,19 +487,19 @@ class MySQLDB(object):
         '''
         Update one column with a new value.
 
-        :param tblName: name of table in which update is to occur
-        :type tblName: String
-        :param colName: column whose value is to be changed
-        :type colName: String
-        :param newVal: value acceptable to MySQL for the given column 
-        :type newVal: type acceptable to MySQL for the given column 
-        :param fromCondition: optionally condition that selects which rows to update.
+        @param tblName: name of table in which update is to occur
+        @type tblName: String
+        @param colName: column whose value is to be changed
+        @type colName: String
+        @param newVal: value acceptable to MySQL for the given column 
+        @type newVal: type acceptable to MySQL for the given column 
+        @param fromCondition: optionally condition that selects which rows to update.
                       if None, the named column in all rows are updated to
                       the given value. Syntax must conform to what may be in
                       a MySQL FROM clause (don't include the 'FROM' keyword)
-        :type fromCondition: String
-        :return (None,None) if all ok, else tuple (errorList, warningsList)
-        :rtype {(None,None) | ([str],[str])}
+        @type fromCondition: String
+        @return (None,None) if all ok, else tuple (errorList, warningsList)
+        @rtype {(None,None) | ([str],[str])}
         '''
 
         errors   = []
@@ -563,11 +568,11 @@ class MySQLDB(object):
         need to call next() to get the first result, even if
         there is only one.
 
-        :param queryStr: the query to submit to MySQL
-        :type queryStr: String
-        :return: iterator of query results
-        :rtype: iterator of tuples
-        :raise ValueError on MySQL errors.
+        @param queryStr: the query to submit to MySQL
+        @type queryStr: String
+        @return: iterator of query results
+        @rtype: iterator of tuples
+        @raise ValueError on MySQL errors.
         '''
 
         # The str/byte/unicode type mess between
@@ -607,11 +612,11 @@ class MySQLDB(object):
         If queryStr is left to None, the value of 
         self.most_recent_query is used.
         
-        :param queryStr: query that was used in a prior call to query()
-        :type queryStr: {None | string}
-        :return: number of records in SELECT result.
-        :rtype: int
-        :raise: ValueError if no prior query is still active.
+        @param queryStr: query that was used in a prior call to query()
+        @type queryStr: {None | string}
+        @return: number of records in SELECT result.
+        @rtype: int
+        @raise: ValueError if no prior query is still active.
         '''
         
         try:
@@ -643,11 +648,11 @@ class MySQLDB(object):
             
         For those, turn doCommit to False;
         
-        :param query: query or directive
-        :type query: String
-        :return: (None,None) if all went well, else a tuple:
+        @param query: query or directive
+        @type query: String
+        @return: (None,None) if all went well, else a tuple:
             (listOrErrors, listOfWarnings)
-        :rtype {(None,None) | ([str],[str])}
+        @rtype {(None,None) | ([str],[str])}
         '''
         
         errors   = []
@@ -705,12 +710,12 @@ class MySQLDB(object):
         the comma after 'myVal' is mandatory; it indicates that the 
         expression is a tuple.
 
-        :param   query: query with parameter placeholder
-        :type    query: string
-        :param   params: tuple of actuals for the parameters.
-        :type    params: (<any>)
-        :return: (None,None) if all ok, else tuple: (errorList, warningsList)
-        :rtype: {(None,None) | ([str],[str])}  
+        @param   query: query with parameter placeholder
+        @type    query: string
+        @param   params: tuple of actuals for the parameters.
+        @type    params: (<any>)
+        @return: (None,None) if all ok, else tuple: (errorList, warningsList)
+        @rtype: {(None,None) | ([str],[str])}  
         '''
 
         errors   = []
@@ -768,10 +773,10 @@ class MySQLDB(object):
         Note that ','.join(map(str,myList)) won't work:
         (10, 'My Poem') ---> '10, My Poem'
 
-        :param colVals: list of column values destined for a MySQL table
-        :type colVals: <any>
-        :return: string of string-separated, properly typed column values
-        :rtype: string
+        @param colVals: list of column values destined for a MySQL table
+        @type colVals: <any>
+        @return: string of string-separated, properly typed column values
+        @rtype: string
         '''
 
         resList = []
@@ -845,8 +850,8 @@ class MySQLDB(object):
         for element in _stringifyList(someList):
             print(element)
 
-        :param iterable: mixture of items of any type, including Unicode strings.
-        :type iterable: [<any>]
+        @param iterable: mixture of items of any type, including Unicode strings.
+        @type iterable: [<any>]
         '''
         for element in iterable:
             try:
@@ -956,7 +961,7 @@ class QueryResult(object):
         This convention is in contrast to what
         cursor.fetconeh() does.
         
-        :raise StopIteration
+        @raise StopIteration
         '''
   
         res = self.mysql_cursor.fetchone()
@@ -977,9 +982,9 @@ class QueryResult(object):
         Returns the remaining query results as a 
         tuple of tuples.
         
-        :return: all remaining tuples inside a wrapper tuple, or empty tuple
+        @return: all remaining tuples inside a wrapper tuple, or empty tuple
                  if no results remain.
-        :rtype: ((str))
+        @rtype: ((str))
         
         '''
         all_remaining = self.mysql_cursor.fetchall()
@@ -998,9 +1003,9 @@ class QueryResult(object):
         '''
         Return the number of results in this result object.
         
-        :return number of query results
-        :rtype int
-        :raise ValueError if query no longer active.
+        @return number of query results
+        @rtype int
+        @raise ValueError if query no longer active.
         '''
         if self.exhausted:
             raise ValueError("Query '%s' is no longer active." % self.query_str())

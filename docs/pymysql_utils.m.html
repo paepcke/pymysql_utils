@@ -5,9 +5,8 @@
 
     <title>pymysql_utils API documentation</title>
     <meta name="description" content="Created on Sep 24, 2013
-</br>@author: paepcke
-</br>Modifications:
-  - Dec 30, 2013: Added closing of..." />
+</br>@author: Andreas Paepcke
+</br>Wrapper for the mysqlclient Python MySQL ..." />
 
   <link href='http://fonts.googleapis.com/css?family=Source+Sans+Pro:400,300' rel='stylesheet' type='text/css'>
   
@@ -1118,24 +1117,32 @@ table {
   <header id="section-intro">
   <h1 class="title"><span class="name">pymysql_utils</span> module</h1>
   <p>Created on Sep 24, 2013
-</br>@author: paepcke
-</br>Modifications:
-  - Dec 30, 2013: Added closing of connection to close() method
-  - Mar 26, 2017: Major overhaul; fixed bulk insert.
-</br>For usage details, see <code>Github README &lt;https://github.com/paepcke/pymysql_utils&gt;</code>_.
-This module is designed for MySQL 5.6 and 5.7. 
+</br>@author: Andreas Paepcke
+</br>Wrapper for the mysqlclient Python MySQL access library. Replaces
+the cursor notion with query result iterators, adds methods for 
+frequent database operations.
+</br>For usage details, see <code>Github README &lt;https://github.com/paepcke/pymysql_utils&gt;</code>
+or the PyPi project description. HTML documentation for the code below
+is available in the docs subdirectory.
+</br>This module is designed for MySQL 5.6, 5.7, and 8.0. Both, Python 2.7,
+and Python 3.6+ are supported. See documentation for the combinations
+that have been tested. 
  </br></p>
   
   <p class="source_link"><a href="javascript:void(0);" onclick="toggle('source-pymysql_utils', this);">Show source &equiv;</a></p>
   <div id="source-pymysql_utils" class="source">
     <div class="codehilite"><pre><span></span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">Created on Sep 24, 2013</span>
-<span class="sd">&lt;/br&gt;@author: paepcke</span>
-<span class="sd">&lt;/br&gt;Modifications:</span>
-<span class="sd">  - Dec 30, 2013: Added closing of connection to close() method</span>
-<span class="sd">  - Mar 26, 2017: Major overhaul; fixed bulk insert.</span>
-<span class="sd">&lt;/br&gt;For usage details, see `Github README &lt;https://github.com/paepcke/pymysql_utils&gt;`_.</span>
-<span class="sd">This module is designed for MySQL 5.6 and 5.7. </span>
+<span class="sd">&lt;/br&gt;@author: Andreas Paepcke</span>
+<span class="sd">&lt;/br&gt;Wrapper for the mysqlclient Python MySQL access library. Replaces</span>
+<span class="sd">the cursor notion with query result iterators, adds methods for </span>
+<span class="sd">frequent database operations.</span>
+<span class="sd">&lt;/br&gt;For usage details, see `Github README &lt;https://github.com/paepcke/pymysql_utils&gt;`</span>
+<span class="sd">or the PyPi project description. HTML documentation for the code below</span>
+<span class="sd">is available in the docs subdirectory.</span>
+<span class="sd">&lt;/br&gt;This module is designed for MySQL 5.6, 5.7, and 8.0. Both, Python 2.7,</span>
+<span class="sd">and Python 3.6+ are supported. See documentation for the combinations</span>
+<span class="sd">that have been tested. </span>
 <span class="sd"> &lt;/br&gt;&#39;&#39;&#39;</span>
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>

@@ -11,7 +11,6 @@ available. Query results are iterators with `next()` and
 
 Tested on:
 
-
 |  OS                 | MySQL        | Python |
 | ------------------- | ------------ | ------ |
 | macos               |  mysql 8.0   |   3.7  |
@@ -19,11 +18,14 @@ Tested on:
 | ubuntu 16.04 Xenial |  mysql 5.7   |   3.6  |
 | ubuntu 16.04 Xenial |  mysql 5.7   |   2.7  |
 
-
 ##Quickstart
 
 ```python
 from pymysql_utils.pymysql_utils import MySQLDB
+
+# Create a database instance. For one approach to
+# dealing with password-protected databases, see
+# the Tips Section below.
 
 db = MySQLDB(user='myName', db='myDb')
 mySchema = {
@@ -113,6 +115,28 @@ results2.result_count()
 # --> raises ValueError: query exhausted.
 
 ```
+## Tips:
+
+* Many methods return a two-tuple that includes a list of warnings, and a
+  list of errors.
+* Check the [in-code documentation](docs/pymysql_utils.m.html) for all
+  available methods.
+* A number of frequent SQL operations can conveniently be accomplised
+  via dedicated methods: `close`, `createTable`, `dropTable`, `insert`,
+  `bulkInsert`, `truncateTable`, and `update`.
+
+  These, or other operations can also be accomplished by using
+  `execute()` to submit arbitrary SQL
+* A useful idiom for queries known to return a single result,
+  such as a count:
+
+    `db.query('...').next()`
+* The underlying `mysqlclient` package does not expose the MySQL 5.7+
+  *login-path* option. So the `MySQLDB()` call needs to include the
+  password if one is required. One way to avoid putting passwords into
+  your code is to place the password into a file in a well protected
+  directory, such as `~/.ssh/mysql`. Then read the password from there.
+  
 ##Installation
 
 

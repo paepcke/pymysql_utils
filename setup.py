@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name = "pymysql_utils",
-    version = "2.0",
+    version = "2.0.2",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -25,11 +25,14 @@ setup(
     # Unit tests; they are initiated via 'python setup.py test'
     test_suite       = 'nose.collector', 
 
-    # metadata for upload to PyPI
+    # Metadata for upload to PyPI
+
     author = "Andreas Paepcke",
     author_email = "paepcke@cs.stanford.edu",
+    long_description_content_type = "text/markdown",
     description = "Thin wrapper around pymysql. Provides Python iterator for queries. Abstracts away cursor.",
+    long_description = long_description,
     license = "BSD",
     keywords = "MySQL",
-    url = "https://github.com/paepcke/pymysql_utils",   # project home page, if any
+    url = "https://github.com/paepcke/pymysql_utils",   # project home page
 )
