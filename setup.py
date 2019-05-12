@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name = "pymysql_utils",
-    version = "2.0.3",
+    version = "2.0.5",
     packages = find_packages(),
 
     # Dependencies on other packages:
@@ -30,7 +30,7 @@ setup(
     author = "Andreas Paepcke",
     author_email = "paepcke@cs.stanford.edu",
     long_description_content_type = "text/markdown",
-    description = "Thin wrapper around pymysql. Provides Python iterator for queries. Abstracts away cursor.",
+    description = "Thin wrapper around mysqlclient. Provides Python iterator for queries. Abstracts away cursor.",
     long_description = long_description,
     license = "BSD",
     keywords = "MySQL",
