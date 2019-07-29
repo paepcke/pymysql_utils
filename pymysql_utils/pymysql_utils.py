@@ -4,7 +4,7 @@ Created on Sep 24, 2013
 @author: Andreas Paepcke
 
 Wrapper for the mysqlclient Python MySQL access library. Replaces
-:the cursor notion with query result iterators, adds methods for 
+the cursor notion with query result iterators, adds methods for 
 frequent database operations.
 
 For usage details, see `Github README <https://github.com/paepcke/pymysql_utils>`
@@ -28,12 +28,44 @@ import tempfile
 from warnings import filterwarnings, resetwarnings
 
 
-import MySQLdb
-from MySQLdb import Warning as db_warning
-from MySQLdb._exceptions import ProgrammingError, OperationalError
-from MySQLdb.cursors import DictCursor as DictCursor
-from MySQLdb.cursors import SSCursor as SSCursor
-from MySQLdb.cursors import SSDictCursor as SSDictCursor
+# Find out whether we are to use the C-based MySQLdb
+# (mysqlclient) package, or the Python-only pymysql package.
+# MySQLdb is the default. If FORCE_PYTHON_NATIVE is False
+# or not defined in pymysql_utils_config.py, or if that file
+# is unavailable, use the default:
+
+try:
+    import pymysql_utils_config
+    FORCE_PYTHON_NATIVE = pymysql_utils_config.FORCE_PYTHON_NATIVE
+except (ImportError, AttributeError):
+    FORCE_PYTHON_NATIVE = False
+
+# The mysql_api will either be 'pymysql'
+# or MySQLdb, depending on whether we will
+# use the Python native underlying library,
+# or the MySQLdb:
+
+mysql_api = None
+
+if FORCE_PYTHON_NATIVE:
+    try:
+        import pymysql
+        from pymysql import Warning as db_warning
+        from pymysql.err import ProgrammingError, OperationalError
+        from pymysql.cursors import DictCursor as DictCursor
+        from pymysql.cursors import SSCursor as SSCursor
+        from pymysql.cursors import SSDictCursor as SSDictCursor
+        mysql_api = pymysql
+    except ImportError:
+        raise ImportError("Import directive FORCE_PYTHON_NATIVE specified in pymysql_utils_config.py, but pymysql library not available.")
+else:    
+    import MySQLdb
+    from MySQLdb import Warning as db_warning
+    from MySQLdb._exceptions import ProgrammingError, OperationalError
+    from MySQLdb.cursors import DictCursor as DictCursor
+    from MySQLdb.cursors import SSCursor as SSCursor
+    from MySQLdb.cursors import SSDictCursor as SSDictCursor
+    mysql_api = MySQLdb
 
 # To check for variable being a string in both Python 2.7 and 3.x:
 try:
@@ -159,26 +191,26 @@ class MySQLDB(object):
         # Find location of mysql client program.
         # Will raise error if not found.
         MySQLDB.find_mysql_path()
-
+        
         try:
             if cursor_class is None:
-                self.connection = MySQLdb.connect(host=host,
-                                                  port=port, 
-                                                  user=user, 
-                                                  passwd=passwd, 
-                                                  db=db,
-                                                  charset='utf8',
-                                                  local_infile=1)
+                self.connection = mysql_api.connect(host=host,
+                                                    port=port, 
+                                                    user=user, 
+                                                    passwd=passwd, 
+                                                    db=db,
+                                                    charset='utf8',
+                                                    local_infile=1)
             else:
-                self.connection = MySQLdb.connect(host=host, 
-                                                  port=port, 
-                                                  user=user, 
-                                                  passwd=passwd, 
-                                                  db=db,
-                                                  charset='utf8',
-                                                  cursorclass=cursor_class,
-                                                  local_infile=1)
-        
+                self.connection = mysql_api.connect(host=host, 
+                                                    port=port, 
+                                                    user=user, 
+                                                    passwd=passwd, 
+                                                    db=db,
+                                                    charset='utf8',
+                                                    cursorclass=cursor_class,
+                                                    local_infile=1)
+          
         except OperationalError as e:
             pwd = '...............' if len(passwd) > 0 else '<no password>'
             raise ValueError('Cannot reach MySQL server with host:%s, port:%s, user:%s, pwd:%s, db:%s (%s)' %

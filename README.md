@@ -2,7 +2,9 @@
 
 The pymysql_utils package makes interaction with MySQL from
 Python more pythonic than its underlying package `mysqlclient`
-(formerly MySQL-python).
+(formerly MySQL-python), or the alternative underlying package
+`pymysql`. Either mysqlclient, or pymysql may be chosen as the
+foundation of pymysql_utils.
 
 Convenience methods for common MySQL operations, such as
 managing tables, insertion, updates, and querying are also
@@ -160,5 +162,16 @@ python setup.py install
 # The unittests give these instructions as well.
 
 # python setup.py test
+
+## Selecting Python-only or C-Python
+
+By default pymysql_utils uses `mysqlclient`, and therefore a C-based
+API to MySQL servers. Occasionally it may be desirable to use a
+Python only solution. You may force pymysql_utils to use the
+`pymysql` library instead of `mysqlclient` by modifying one line
+in `pymysql_utils_config.py`. Just set `FORCE_PYTHON_NATIVE` to `True`.
+
+The only known reason for forcing Python only is a known incompatibility
+between openssl 1.1.1[a,b,c] and mysqlclient (as of Jul 29, 2017).
 ```
 
