@@ -162,7 +162,7 @@ python setup.py install
 # The unittests give these instructions as well.
 
 # python setup.py test
-
+```
 ## Selecting Python-only or C-Python
 
 By default pymysql_utils uses `mysqlclient`, and therefore a C-based
