@@ -928,7 +928,7 @@ class MySQLDB(object):
         
         if eclipse_indicator is None or \
            eclipse_indicator == '0' or \
-           eclipse_indicator.find('org.eclipse.platform.ide') == -1:
+           eclipse_indicator.find('eclipse') == -1:
             # Not running in Eclipse; use reliable method to find mysql:
             mysql_loc = subprocess.check_output(
                                         "command -v mysql; exit 0",
@@ -1054,13 +1054,13 @@ class QueryResult(object):
 
 @contextmanager
 def no_warn_no_table():
-    filterwarnings('ignore', message="Unknown table", category=db_warning)
+    filterwarnings('ignore', message=r".*Unknown table.*", category=db_warning)
     yield
     resetwarnings()
 
 @contextmanager
 def no_warn_dup_key():
-    filterwarnings('ignore', message="Duplicate entry", category=db_warning)
+    filterwarnings('ignore', message=r".*Duplicate entry.*", category=db_warning)
     yield
     resetwarnings()
 

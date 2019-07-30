@@ -5,7 +5,6 @@ Updated on Mar 26, 2017
 @author: paepcke
 
 '''
-
 # To run these tests, you need a local MySQL server,
 # an account called 'unittest' on that server, and a
 # database called 'unittest', also on that server.
@@ -31,15 +30,21 @@ import re
 import socket
 import subprocess
 import unittest
+import os
 
-from .pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors
-
+eclipse_indicator = os.getenv('XPC_SERVICE_NAME')
+if eclipse_indicator.find('eclipse') == -1:
+    # Not running in Eclipse:
+    from .pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors, pymysql_utils_config
+else:
+    # Running in Eclipse:
+    from pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors, pymysql_utils_config
 
 class TestPymysqlUtils(unittest.TestCase):
     '''
     Tests pymysql_utils.    
     '''
-  
+
     @classmethod
     def setUpClass(cls):
         # Ensure that a user unittest with the proper
@@ -809,9 +814,54 @@ class TestPymysqlUtils(unittest.TestCase):
         
         return strLike
 
+    #-------------------------
+    # read_config_file
+    #--------------
+
+    @classmethod
+    def read_config_file(cls):
+        '''
+        Read and return content of pymysql_utils_config.py
+        '''
+        curr_dir = os.path.dirname(__file__)
+        config_file_name = os.path.join(curr_dir, 'pymysql_utils_config.py')
+        with open(config_file_name, 'r') as fd:
+            return fd.read() 
     
-
-
+    #-------------------------
+    # write_config_file 
+    #--------------
+    
+    @classmethod
+    def write_config_file(cls, content):
+        curr_dir = os.path.dirname(__file__)
+        config_file_name = os.path.join(curr_dir, 'pymysql_utils_config.py')
+        with open(config_file_name, 'w') as fd:
+            return fd.write(content) 
+        
+        
 if __name__ == "__main__":
     # import sys;sys.argv = ['', 'Test.testQuery']
-    unittest.main()
+
+    # Remember current state of config file:
+    config_file_orig = TestPymysqlUtils.read_config_file()
+    
+    try:
+        # First set of testing: using MySQLdb (i.e. mysqlclient)
+        # as underlying lib:
+        TestPymysqlUtils.write_config_file('FORCE_PYTHON_NATIVE = False\n')
+
+        print("****** Testing over mysqlclient (MySQLdb) substrate...")        
+        unittest.main(exit=False)
+        print("****** Done testing over mysqlclient (MySQLdb) substrate.")        
+        
+        # Run same tests again, but with pymysql as underlying lib:
+        TestPymysqlUtils.write_config_file('FORCE_PYTHON_NATIVE = True\n')    
+
+        print("****** Testing over pymysql (Python-only mysql client) substrate...")        
+        unittest.main(exit=False)
+        print("****** Done testing over pymysql (Python-only mysql client) substrate.")        
+    finally:
+        # Restore original configuration:    
+        TestPymysqlUtils.write_config_file(config_file_orig)
+
