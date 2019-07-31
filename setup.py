@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setup(
     name = "pymysql_utils",
-    version = "2.1.1",
+    version = "2.1.2",
     packages = find_packages(),
 
     # Dependencies on other packages:
