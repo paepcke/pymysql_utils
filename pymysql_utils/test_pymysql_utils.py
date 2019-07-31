@@ -35,7 +35,7 @@ import os
 eclipse_indicator = os.getenv('XPC_SERVICE_NAME')
 if eclipse_indicator.find('eclipse') == -1:
     # Not running in Eclipse:
-    from .pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors, pymysql_utils_config
+    from pymysql_utils.pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors, pymysql_utils_config
 else:
     # Running in Eclipse:
     from pymysql_utils import MySQLDB, DupKeyAction, no_warn_no_table, Cursors, pymysql_utils_config
