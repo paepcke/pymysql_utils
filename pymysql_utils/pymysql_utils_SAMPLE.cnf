@@ -1,0 +1,17 @@
+# If using defaults, this file is irrelevant. If you
+# need to switch to the Python-only substrate (pymysql)
+# vs. the default substrate (the C-based mysqlclient),
+# then:
+#
+#    Set FORCE_PYTHON_NATIVE = True
+#
+# and copy the resulting file to pymysql_utils.cnf
+# in the code directory, or to $HOME/.pymysql_utilsrc
+
+[substrate]
+
+# Whether to use the Python-only pymysql as the underlying
+# connection machinery to MySQL, or whether to use the
+# C-based mysqlclient (default):
+
+FORCE_PYTHON_NATIVE = False

@@ -26,18 +26,17 @@ import socket
 import subprocess
 import tempfile
 from warnings import filterwarnings, resetwarnings
-
+from pymysql_utils.utils_config_parser import UtilsConfigParser
 
 # Find out whether we are to use the C-based MySQLdb
 # (mysqlclient) package, or the Python-only pymysql package.
 # MySQLdb is the default. If FORCE_PYTHON_NATIVE is False
-# or not defined in pymysql_utils_config.py, or if that file
-# is unavailable, use the default:
+# or not defined in pymysql_utils.cnf file, or if that file
+# is unavailable, use the default C-based mysqlclient:
 
 try:
-    import pymysql_utils_config
-    FORCE_PYTHON_NATIVE = pymysql_utils_config.FORCE_PYTHON_NATIVE
-except (ImportError, AttributeError):
+    FORCE_PYTHON_NATIVE  = UtilsConfigParser()['substrate']['FORCE_PYTHON_NATIVE']
+except KeyError:
     FORCE_PYTHON_NATIVE = False
 
 # The mysql_api will either be 'pymysql'
@@ -57,7 +56,7 @@ if FORCE_PYTHON_NATIVE:
         from pymysql.cursors import SSDictCursor as SSDictCursor
         mysql_api = pymysql
     except ImportError:
-        raise ImportError("Import directive FORCE_PYTHON_NATIVE specified in pymysql_utils_config.py, but pymysql library not available.")
+        raise ImportError("Import directive FORCE_PYTHON_NATIVE specified in pymysql_utils.cnf, but pymysql library not available.")
 else:    
     import MySQLdb
     from MySQLdb import Warning as db_warning
@@ -99,6 +98,7 @@ class MySQLDB(object):
       - Insertion/update
     '''
 
+    config_parser = None
     NON_ASCII_CHARS_PATTERN = re.compile(r'[^\x00-\x7F]+')
 
     # ----------------------- Top-Level Housekeeping -------------------------
