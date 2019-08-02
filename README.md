@@ -176,5 +176,13 @@ So don't forget to `pip install pymysql` in your environment.
 
 The only known reason for forcing Python only is a known incompatibility
 between openssl 1.1.1[a,b,c] and mysqlclient (as of Jul 29, 2017).
+
+To have pymysql_utils use the Python-only pymysql library, do this:
+1. Copy pymysql_utils/pymysql_utils_SAMPLE.cnf to pymysql_utils/pymysql_utils.cnf
+2. Inside this new config file, change
+
+       FORCE_PYTHON_NATIVE = False
+   to
+       FORCE_PYTHON_NATIVE = True
 ```
 
