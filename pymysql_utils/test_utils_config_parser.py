@@ -121,6 +121,14 @@ class TestUtilConfigParser(unittest.TestCase):
         cp.refresh()
         # Should revert:
         self.assertEqual(cp.getint('Section1', 'sec_1_key1'), 10)
+
+    #-------------------------
+    # testTypeSpecificRead 
+    #--------------
+
+    @unittest.skipIf(TEST_ALL != True, 'temporary skip')
+    def testTypeSpecificRead(self):
+        cp = UtilsConfigParser([self.tmp_file1.name])
         
     # ---------------------- Utilities ------------
     def make_config1(self):
@@ -145,6 +153,19 @@ class TestUtilConfigParser(unittest.TestCase):
         self.tmp_file2.write(conf)
         self.tmp_file2.flush()
         
+    def make_config3(self):
+        conf = b'''
+        [Default]
+        key1 = 30
+        key2 : 'My Bonny lies over the ocean.'
+        key3 : True
+        key4 : 1
+        key5 : 'True'
+        key6 : 'true'
+        key7 : 3.14159
+        '''
+        self.tmp_file2.write(conf)
+        self.tmp_file2.flush()
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testReadFromOneConfigFile']
