@@ -14,7 +14,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name = "pymysql_utils",
-    version = "2.1.2",
+    version = "2.1.3",
     packages = find_packages(),
 
     # Dependencies on other packages:

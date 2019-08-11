@@ -627,7 +627,7 @@ class MySQLDB(object):
 
         try:        
             cursor.execute(queryStr)
-        except ProgrammingError as e:
+        except (ProgrammingError, OperationalError) as e:
             raise ValueError(repr(e))
         return QueryResult(cursor, queryStr, self)
         
