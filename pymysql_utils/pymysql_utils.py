@@ -181,6 +181,7 @@ class MySQLDB(object):
         self.pwd  = passwd
         self.db   = db
         self.name = db
+        self.host = host
         # Will hold querySt->cursor for two purposes:
         # Ability to retrieve number of results in SELECT,
         # Ensure that all cursors are closed (see query()):
@@ -235,6 +236,19 @@ class MySQLDB(object):
         '''
         return self.db
     
+    #-------------------------
+    # dbHost 
+    #--------------
+        
+    def dbHost(self):
+        '''
+        Return name of host where database resides.
+        
+        @return: name of host to which MySQLDB instance is connected.
+        @rtype: String
+        '''
+        return self.host
+        
     #-------------------------
     # close 
     #--------------
