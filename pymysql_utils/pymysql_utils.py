@@ -384,6 +384,7 @@ class MySQLDB(object):
 
         errors   = []
         warnings = []
+        mysql_warnings = []
 
         colNames, colValues = zip(*colnameValueDict.items())
         cursor = self.connection.cursor()
@@ -703,6 +704,8 @@ class MySQLDB(object):
         
         errors   = []
         warnings = []
+        mysql_warnings = []
+        
         cursor=self.connection.cursor()                                                                        
         try:
             with no_db_warnings():
@@ -710,10 +713,10 @@ class MySQLDB(object):
                     cursor.execute(query)
                     # Eat any query results and discard them:
                     cursor.fetchall()
-                except Exception:
+                except Exception as e:
                     # The following show_warnings() will
                     # reveal the error:
-                    pass
+                    mysql_warnings = self.connection.show_warnings()
         finally:                                                                                               
             if doCommit:
                 self.connection.commit()
@@ -724,10 +727,8 @@ class MySQLDB(object):
                 # will be caught in the show_warnings()
                 # below; so ignore it here:
                 cursor.close()
-            except Exception:
+            except Exception as e:
                 pass
-
-        mysql_warnings = self.connection.show_warnings()
 
         if len(mysql_warnings) > 0:
             warnings   = [warning_tuple for warning_tuple in mysql_warnings if warning_tuple[0] == 'Warning']
@@ -1005,7 +1006,7 @@ class QueryResult(object):
         `({'col1' : 10},) ==> {'col1' : 10}`
 
         This convention is in contrast to what
-        cursor.fetconeh() does.
+        cursor.fetchone() does.
         
         @raise StopIteration
         '''
@@ -1016,7 +1017,7 @@ class QueryResult(object):
             self.exhausted = True
             raise StopIteration()            
         else:
-            if len(res) == 1:
+            if len(res) == 1 and (type(res) == list or type(res) == tuple):
                 return res[0]
             else:
                 return res
